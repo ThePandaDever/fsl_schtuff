@@ -1,0 +1,7 @@
+fn main() {
+    arr = [test];
+    print(arr);
+}
+fn test() {
+    
+}

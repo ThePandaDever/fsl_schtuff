@@ -1,0 +1,6 @@
+fn hello(name) {
+  print("hello" + name ++ "!");
+}
+
+hello("flufi"); // hello flufi!
+hello("mist"); // hello mist!

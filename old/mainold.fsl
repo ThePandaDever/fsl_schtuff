@@ -1,0 +1,13 @@
+import test;
+import test as alias
+
+fn main() {
+  test.test();
+  alias.other("wow");
+  alias.privateFunc();
+}
+
+
+js fn jsTest() {
+  console.log("js :shock:");
+}
