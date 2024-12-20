@@ -300,6 +300,5 @@ function generateAstPath(path) {
             }
         }
     }
-    console.log(totalPath.reverse())
     return totalPath.reverse();
 }

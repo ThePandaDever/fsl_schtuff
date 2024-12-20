@@ -127,7 +127,27 @@ function runNode(content, scopeID) {
             }
             break
         case "assignment":
-            //console.log(content["key"])
+            let assignment_ref = scopes[scopeID]["variables"];
+            for (let i = 0; i < content["key"].length - 1; i++) {
+                const key = content["key"][i];
+                if (!assignment_ref) {
+                    error("cannot get path",content["key"].map(
+                        v => {switch (v["type"]) { case "reference": return v["key"]; case "literal": return v["data"][0]; }}
+                    ).join("."));
+                }
+                if (key["type"] == "reference") {
+                    assignment_ref = assignment_ref[key["key"]];
+                }
+            }
+            if (!assignment_ref) {
+                error("cannot set path",content["key"].map(
+                    v => {switch (v["type"]) { case "reference": return v["key"]; case "literal": return v["data"][0]; }}
+                ).join("."));
+            }
+            const key = content["key"][content["key"].length - 1];
+            if (key["type"] == "reference") {
+                assignment_ref[key["key"]] = runNode(content["value"]);
+            }
             break
         default:
             error("unknown node type '" + content["type"] + "'")
