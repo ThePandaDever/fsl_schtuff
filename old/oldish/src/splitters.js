@@ -517,7 +517,7 @@ export function splitAssignment(input) {
 
                 default:
                     // Handle operators or other characters
-                    if (ops.includes(input[i + 1]) && opsae.includes(input[i + 2]) && notset) {
+                    if (bracketDepth === 0 && curlyDepth === 0 && squareDepth === 0 && ops.includes(input[i + 1]) && opsae.includes(input[i + 2]) && notset) {
                         if (current.trim()) {
                             result.push(current.trim());
                         }
@@ -684,7 +684,7 @@ export function splitCommand(input) {
         } // Handle opening brackets (parentheses, curly braces, square brackets)
         else if (char === '(') {
             if (depth === 0 && cdepth === 0 && sdepth === 0) {
-                if (currentPart !== "") {
+                if (currentPart.trim()) {
                     result.push(currentPart.trim());
                 }
                 currentPart = "(";
@@ -696,7 +696,7 @@ export function splitCommand(input) {
             depth--;
             if (depth === 0 && cdepth === 0 && sdepth === 0) {
                 currentPart += ")";
-                if (currentPart !== "") {
+                if (currentPart.trim()) {
                     result.push(currentPart.trim());
                 }
                 currentPart = "";
@@ -705,13 +705,19 @@ export function splitCommand(input) {
             }
         } // Handle curly braces
         else if (char === '{') {
+            if (depth === 0 && cdepth === 0 && sdepth === 0) {
+                if (currentPart.trim()) {
+                    result.push(currentPart.trim());
+                }
+                currentPart = "";
+            }
             cdepth++;
             currentPart += char;
         } else if (char === '}') {
             cdepth--;
             currentPart += char;
             if (depth === 0 && cdepth === 0 && sdepth === 0) {
-                if (currentPart !== "") {
+                if (currentPart.trim()) {
                     result.push(currentPart.trim());
                 }
                 currentPart = "";
@@ -734,7 +740,6 @@ export function splitCommand(input) {
             currentPart += char;
         }
     }
-
     if (currentPart !== "") {
         result.push(currentPart.trim());
     }

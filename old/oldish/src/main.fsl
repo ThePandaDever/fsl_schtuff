@@ -1,0 +1,9 @@
+test = {
+  "wow": fn() {
+    print("hi");
+  }
+}
+class test {
+  
+}
+test.wow();
