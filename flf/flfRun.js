@@ -1,7 +1,8 @@
 
 import { runFunction, astSegment } from "../src/fsl.js";
-
-console.log("output:",runFunction(astSegment(process.argv[2]),"main"));
+const out = runFunction(astSegment(process.argv[2]),"main",{},true,true);
+if (out)
+    console.log("output:",out);
 
 /*
 import { generateAst } from "../old/oldish/src/astGen.js";
