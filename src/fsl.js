@@ -3,7 +3,7 @@ const MD5 = function(r){function n(r,n){var t,o,e,u,f;return e=2147483648&r,u=21
 function splitLogic(t){const e=[];let i="",r=!1,s=!1,n=0,u=0,c=0,o=!1;const l=/(\|\||&&)/;for(let p=0;p<t.length;p++){const m=t[p];if(o)i+=m,o=!1;else if("\\"!==m){if("'"!==m||s||o?'"'!==m||r||o||(s=!s):r=!r,r||s||("["===m?n++:"]"===m?n--:"{"===m?u++:"}"===m?u--:"("===m?c++:")"===m&&c--),!r&&!s&&0===n&&0===u&&0===c){const r=t.slice(p).match(l);if(r&&0===r.index){i.trim()&&(e.push(i.trim()),i=""),e.push(r[0]),p+=r[0].length-1;continue}}i+=m}else o=!0,i+=m}return i.trim()&&e.push(i.trim()),e}
 function splitOperators(t,e){const i=[];let r="",s=!1,n=!1,u=0,c=0,o=0,l=!1;for(let p=0;p<t.length;p++){const m=t[p];l?(l=!1,r+=m):"\\"!==m?"'"!==m||n||u||c||o?'"'!==m||s||u||c||o?s||n?r+=m:("["===m?u++:"]"===m?u--:"{"===m?c++:"}"===m?c--:"("===m?o++:")"===m&&o--,e.includes(m)&&0===u&&0===c&&0===o?"+"!=m||"+"==m&&"+"!=t[p-1]&&"+"!=t[p+1]?(r.trim()&&i.push(r.trim()),i.push(m),r=""):("+"==m&&"+"==t[p+1]&&(i.push(r.trim()),r=""),r+=m,"+"==m&&"+"==t[p-1]&&(i.push(r.trim()),r="")):r+=m):(l||(n=!n),r+=m):(l||(s=!s),r+=m):(l=!0,r+=m)}return r.trim()&&i.push(r.trim()),i}
 function splitStatement(t){const e=[];let i="",r=0,s=0,n=!1,u="",c=0;for(;c<t.length;){const o=t[c],l=t[c-1];'"'!==o&&"'"!==o||"\\"===l||(n?o===u&&(n=!1):(n=!0,u=o)),n?i+=o:"("===o?(s++,i+=o):")"===o?(s--,i+=o):"{"===o?(0===s&&0===r&&i.trim()&&(e.push(i.trim()),i=""),i+=o,r++):"}"===o?(r--,i+=o,0===s&&0===r&&i.trim()&&(e.push(i.trim()),i="")):";"===o&&0===r&&0===s?(e.push(i.trim()),i=""):i+=o,c++}return i.trim()&&e.push(i.trim()),e}
-function splitSegment(t){let e=[],i="",r=!1,s=!1,n=0,u=0,c=0,o=-1;for(let l of t){o++;const p="\\"===(o>0?t[o-1]:null);if('"'!==l||r||p||(s=!s),"'"!==l||s||p||(r=!r),r||s)i+=l;else switch(l){case"{":c++,i+=l;break;case"}":c--,i+=l,0===n&&0===c&&0===u&&"("!==t[o+1]&&i&&(e.push(i.trim()),i="");break;case"[":u++,i+=l;break;case"]":u--,i+=l;break;case"(":n++,i+=l;break;case")":n--,i+=l;break;case";":0===n&&0===c&&0===u?i&&(e.push(i.trim()),i=""):i+=l;break;default:i+=l}}return i&&e.push(i.trim()),e}
+function splitSegment(e){let a=[],r="",s=!1,t=!1,$=0,c=0,l=0,b=-1;for(let i of e){b++;let k="\\"===(b>0?e[b-1]:null);if('"'!==i||s||k||(t=!t),"'"!==i||t||k||(s=!s),s||t)r+=i;else switch(i){case"{":l++,r+=i;break;case"}":l--,r+=i,0===$&&0===l&&0===c&&["\n"," "].includes(e[b+1])&&r&&(a.push(r.trim()),r="");break;case"[":c++,r+=i;break;case"]":c--,r+=i;break;case"(":$++,r+=i;break;case")":$--,r+=i;break;case";":0===$&&0===l&&0===c?r&&(a.push(r.trim()),r=""):r+=i;break;default:r+=i}}return r&&a.push(r.trim()),a}
 function splitAssignment(t,l){let e=[],i="",r=!1,s=!1,n=!0,u=0,c=0,o=0,p=l.concat("="),m=-1;for(let h of t){m++;const f="\\"===(m>0?t[m-1]:null);if('"'!==h||r||f||(s=!s),"'"!==h||s||f||(r=!r),r||s)i+=h;else switch(h){case"{":o++,i+=h;break;case"}":o--,i+=h,0===u&&0===o&&0===c&&i&&(e.push(i.trim()),i="");break;case"[":c++,i+=h;break;case"]":c--,i+=h;break;case"(":u++,i+=h;break;case")":u--,i+=h;break;case"=":if(0===u&&0===o&&0===c&&n&&l.includes(t[m-1])&&n&&!l.includes(h)){i+=h,e.push(i.trim()),i="",n=!1;continue}0!==u||0!==o||0!==c||!n||p.includes(t[m+1])||p.includes(t[m-1])?i+=h:(l.includes(t[m-1])?(i+=h,i&&e.push(i.trim()),i=""):(i.trim()&&e.push(i.trim()),e.push(h),i=""),n=!1);break;default:0===u&&0===o&&0===c&&l.includes(t[m+1])&&p.includes(t[m+2])&&n&&(i.trim()&&e.push(i.trim()),i=""),i+=h}}return i&&e.push(i.trim()),e}
 function splitByFirstSpace(t){const e=(t=t.trim()).indexOf(" ");if(-1===e)return[t];return[t.slice(0,e),t.slice(e+1)]}
 function splitCharedCommand(t,e){const i=[];let r="",s=!1,n=!1,u=0,c=0,o=0,l=!1;for(let p=0;p<t.length;p++){const m=t[p];if(l)r+=m,l=!1;else if("\\"!==m)if('"'!==m||n||0!==u||0!==c||0!==o)if("'"!==m||s||0!==u||0!==c||0!==o){if(!s&&!n){if("("===m){u++,r+=m;continue}if("{"===m){c++,r+=m;continue}if("["===m){o++,r+=m;continue}if(")"===m&&u>0){u--,r+=m;continue}if("}"===m&&c>0){c--,r+=m;continue}if("]"===m&&o>0){o--,r+=m;continue}}m!==e||s||n||0!==u||0!==c||0!==o?r+=m:r.length>0&&(i.push(r.trim()),r="")}else n=!n,r+=m;else s=!s,r+=m;else l=!0,r+=m}return r.length>0&&i.push(r.trim()),i}
@@ -11,13 +11,7 @@ function splitCommand(t){const e=[];let i="",r=!1,s="",n=0,u=0,c=0,o=!1;for(let 
 function splitReferences(t){const e=[];let i="",r=0,s=0,n=0,u=!1,c="";for(let o=0;o<t.length;o++){const l=t[o];u?(i+=l,l===c&&(u=!1)):'"'!==l&&"'"!==l?("("===l&&r++,"{"===l&&s++,"["===l&&n++,")"===l&&r--,"}"===l&&s--,"]"===l&&n--,"["!==l||1!==n?"]"!==l||0!==n?i+=l:(i+=l,0===r&&0===s&&(e.push(i.trim()),i="")):(0===r&&0===s&&""!==i&&(e.push(i.trim()),i=""),i+=l)):(u=!0,c=l,i+=l)}return i.length>0&&e.push(i.trim()),e}
 function splitCommandParams(t){const e=[];let i="",r=!1,s=!1,n=0,u=0,c=0;for(let o=0;o<t.length;o++){const l=t[o];(r||s)&&"\\"===l&&o+1<t.length?(i+=l+t[o+1],o++):'"'!==l||s?"'"!==l||r?"{"!==l||r||s?"}"!==l||r||s?"["!==l||r||s?"]"!==l||r||s?"("!==l||r||s?")"!==l||r||s?","!==l||r||s||n>0||u>0||c>0?i+=l:(e.push(i.trim()),i=""):(c--,i+=l):(c++,i+=l):(u--,i+=l):(u++,i+=l):(n--,i+=l):(n++,i+=l):(s=!s,i+=l):(r=!r,i+=l)}return i&&e.push(i.trim()),e}
 function splitComparison(t,i){i=i.filter(t=>">"!==t&&"<"!==t);let r=RegExp(`(${i.map(escapeRegExp).join("|")})`),$=[],s="",e=!1,m=!1,p=0,u=0,l=0;for(let n=0;n<t.length;n++){let h=t[n],o=t[n+1],_=t[n-1],f="\\"===_&&"'"===h,a="\\"===_&&'"'===h;"'"!==h||m||f||p||u||l?'"'!==h||e||a||p||u||l||(m=!m):e=!e,!e&&!m&&("["===h?p++:"]"===h?p--:"{"===h?u++:"}"===h?u--:"("===h?l++:")"===h&&l--),!r.test(h+o)||e||m||0!==p||0!==u||0!==l?![">","<"].includes(h)||e||m||0!==p||0!==u||0!==l?s+=h:(s.trim()&&$.push(s.trim()),$.push(h),s=""):(s.trim()&&$.push(s.trim()),$.push(h+o),s="",n++)}return s.trim()&&$.push(s.trim()),$}
-function removeStr(t) {
-    if ('"' != t[0] && "'" != t[0] || '"' != t[t.length - 1] && "'" != t[t.length - 1]) return t;
-    let e = t.replaceAll("\\n", "\uE000");
-    e = e.replaceAll("\\\"", "\uE001");
-    e = e.replaceAll("\\'", "\uE002");
-    return e.replace(/\uE000/g, "\n").replace(/\uE001/g, "\"").replace(/\uE002/g, "'").slice(1, -1);
-}
+function removeStr(e){if(!('"'==e[0]&&'"'==e[e.length-1]||"'"==e[0]&&"'"==e[e.length-1]))return e;let l=e.replaceAll("\\n","");return(l=(l=l.replaceAll('\\"',"")).replaceAll("\\'","")).replace(/\uE000/g,"\n").replace(/\uE001/g,'"').replace(/\uE002/g,"'").slice(1,-1)}
 function removeCurlyBrackets(t){return t.replace(/^\{|}$/g,"").trim()}
 function removeSquareBrackets(t){return t.replace(/^\[|\]$/g,"").trim()}
 function removeBrackets(t){return t.replace(/^\(|\)$/g,"").trim()}
@@ -25,7 +19,8 @@ function removeComments(t){return t.replace(/(["'])(?:(?=(\\?))\2.)*?\1|\/\/.*|\
 function isCurlyBrackets(t){return"string"==typeof t&&("{"==t[0]&&"}"==t[t.length-1])}
 function isSquareBrackets(t){return"string"==typeof t&&("["==t[0]&&"]"==t[t.length-1])}
 function isBrackets(t){return"string"==typeof t&&("("==t[0]&&")"==t[t.length-1])}
-function isNoBrackets(t){return"string"==typeof t&&!(isBrackets(t)||isCurlyBrackets(t)||isSquareBrackets(t))}const isNumeric=t=>/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(t);
+function isNoBrackets(t){return"string"==typeof t&&!(isBrackets(t)||isCurlyBrackets(t)||isSquareBrackets(t))}
+const isNumeric=t=>/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(t);
 function isValidVariableFormat(t){return/^[A-Za-z0-9_]+$/.test(t)}
 function isValidFunctionFormat(t){return/^[A-Za-z0-9_.@#]+$/.test(t)}
 function isValidDefinitionFormat(t){return/^[A-Za-z0-9_.@#]+$/.test(t)}
@@ -33,20 +28,7 @@ function isValidAssignFormat(t){return/^[A-Za-z0-9_.@#\[\]\" ]+$/.test(t)}
 function randomStr(r=10){let e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",n="";for(let t=0;t<r;t++)n+=e.charAt(Math.floor(Math.random()*e.length));return n}
 function escapeRegExp(r){return r.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}
 function mergeNegativeNumbers(e,t){let r=[];for(let n=0;n<e.length;n++)t.includes(e[n-1])&&"-"===e[n]&&!isNaN(e[n+1])?(r.push(e[n]+e[n+1]),n++):r.push(e[n]);return r}
-function hexToFloats(hex) {
-    hex = hex.replace(/^#/, "");
-    if (hex.length === 3) {
-        hex = hex.split("").map(char => char + char).join("");
-    }
-    const hexR = parseInt(hex.substring(0, 2), 16);
-    const hexG = parseInt(hex.substring(2, 4), 16);
-    const hexB = parseInt(hex.substring(4, 6), 16);
-    return {
-        r: hexR / 255,
-        g: hexG / 255,
-        b: hexB / 255
-    };
-}
+function hexToFloats(t){3===(t=t.replace(/^#/,"")).length&&(t=t.split("").map(t=>t+t).join(""));let n=parseInt(t.substring(0,2),16),s=parseInt(t.substring(2,4),16),r=parseInt(t.substring(4,6),16);return{r:n/255,g:s/255,b:r/255}}
 
 const Object_merge = function(e,t){if("object"!=typeof e||"object"!=typeof t)return t;{let o=Object_clone(e);for(let r in t)t.hasOwnProperty(r)&&("object"==typeof t[r]?o[r]=Object_merge(e[r],t[r]):o[r]=t[r]);return o}};
 const Object_clone = function(e){if(null===e)return null;if("object"==typeof e){if(Array.isArray(e))return e.map((e=>Object_clone(e)));if(e instanceof RegExp)return new RegExp(e);{let n={};for(let r in e)e.hasOwnProperty(r)&&(n[r]=Object_clone(e[r]));return n}}return e};
@@ -55,7 +37,12 @@ const Object_isSame = function(e,t){if("object"!=typeof e||"object"!=typeof t)re
 const memory = {};
 
 const code = `
-print("hi".wow);
+fn goofy() { print("wow") }
+fn wow() { print("goofy") }
+test = [ goofy, wow ];
+for (i, len test) {
+  test[i]();
+}
 `;
 
 export function astSegment(code, root = true) {
@@ -156,9 +143,8 @@ function astNode(code) {
     const firstSpaceTokens = splitByFirstSpace(code);
     const commandTokens = splitCommand(code);
     const highPriority = ["return"];
-    if (firstSpaceTokens.length == 2 && isValidDefinitionFormat(firstSpaceTokens[0]) && highPriority.includes(firstSpaceTokens[0])) {
-        if (!(isBrackets(commandTokens[1]) && commandTokens.length == 2) &&
-            !(isBrackets(commandTokens[1]) && isCurlyBrackets(commandTokens[2]) && commandTokens.length == 3)) {
+    if (firstSpaceTokens.length == 2) {
+        if (highPriority.includes(firstSpaceTokens[0])) {
             return {
                 "kind": "spacedCommand",
                 "key": astNode(firstSpaceTokens[0]),
@@ -268,7 +254,22 @@ function astNode(code) {
         }
     }
 
-    const restricted = ["fn"];
+    switch (code[0]) {
+        case "!":
+            return {
+                "kind": "operation",
+                "operator": "not",
+                "b": astNode(code.substring(1))
+            };
+        case "?":
+            return {
+                "kind": "operation",
+                "operator": "boolify",
+                "b": astNode(code.substring(1))
+            };
+    }
+
+    const restricted = ["fn","else"];
     if (firstSpaceTokens.length == 2 && isValidDefinitionFormat(firstSpaceTokens[0]) && !restricted.includes(firstSpaceTokens[0])) {
         if (!(isBrackets(commandTokens[1]) && commandTokens.length == 2) &&
             !(isBrackets(commandTokens[1]) && isCurlyBrackets(commandTokens[2]) && commandTokens.length == 3)) {
@@ -302,7 +303,8 @@ function astNode(code) {
             return {
                 "kind": "key",
                 "key": astNode(removeSquareBrackets(keyTokens.pop())),
-                "data": astNode(keyTokens.join(""))
+                "data": astNode(keyTokens.join("")),
+                "isMethod": false
             }
         }
     }
@@ -363,6 +365,13 @@ function astNode(code) {
                 };
             }
         }
+        if (isCurlyBrackets(commandTokens[commandTokens.length - 1])) {
+            return {
+                "kind": "execution",
+                "content": astSegment(removeCurlyBrackets(commandTokens.pop()), false)["data"],
+                "key": astNode(commandTokens.join("")),
+            };
+        }
     }
 
     const methodTokens = splitCharedCommand(code,".");
@@ -372,7 +381,8 @@ function astNode(code) {
             return {
                 "kind": "key",
                 "key": [method,"str"],
-                "data": astNode(methodTokens.join("."))
+                "data": astNode(methodTokens.join(".")),
+                "isMethod": true
             }
         }
     }
@@ -479,6 +489,11 @@ function runFunctionRaw(content, segment, scope = {}, stringify = false) {
     const dataID = allocate({"scope":"","trace":allocate(traceMake(content)),"ast":astID,"memory_addresses":[]});
     const segmentScopeID = getScope(scope,segment["definitions"],dataID);
     const scopeID = getScope(memory[segmentScopeID], content["definitions"], dataID);
+    memory[dataID]["typeAttributes"] = allocate(toNormalObject(allocateTypedObjectContents(globalTypeAttributes,dataID)), dataID);
+    const typeAttr = memory[memory[dataID]["typeAttributes"]];
+    Object.keys(typeAttr).map(k => {
+        typeAttr[k] = toNormalObject(typeAttr[k]);
+    })
     memory[dataID]["scope"] = scopeID;
     let out = runSegmentRaw(segment["data"], dataID);
 
@@ -559,11 +574,20 @@ function runNode(node, dataID, flags = [], extraData = {}) {
             }
             return value;
         case "key":
-            const id = runKey(runNode(node["data"], dataID), runNode(node["key"], dataID), dataID);
+            let keyOrg = runNode(node["data"], dataID);
+            const id = runKey(keyOrg, runNode(node["key"], dataID), node["isMethod"], dataID);
             if (flags.includes("assignment")) {
                 return id;
             }
-            return getMemory(id, dataID);
+            let keyOut = getMemory(id, dataID);
+            if (keyOut) {
+                if (keyOut.length == 2) {
+                    keyOut.push({});
+                }
+                keyOut[2]["original"] = keyOrg;
+                return keyOut;
+            }
+            return inst("null","null");
         case "range":
             let range = [];
             const a = runNode(node["a"], dataID), b = runNode(node["b"], dataID);
@@ -618,17 +642,27 @@ function runExecution(execution,value,args,content,dataID,type = "standard") {
     switch (execution[0]["type"]) {
         case "builtin":
             args = runNodes(args,dataID);
-            const data = execution[0]["data"](dataID, value, ...args);
+            const data = execution[0]["data"](dataID, ...args);
             if (data) {
                 return data;
             }
             return inst("null","null");
         case "builtin_statement":
-            const data2 = execution[0]["data"](dataID, value, content, ...args);
+            const data2 = execution[0]["data"](dataID, content, ...args);
             if (data2) {
                 return data2;
             }
             return inst("null","null");
+        case "method":
+            if (typeof execution[2] === "object" && execution[2] && execution[2]["original"]) {
+                const data3 = execution[0]["data"](dataID, execution[2]["original"], content, ...args);
+                if (data3) {
+                    return data3;
+                }
+                return inst("null","null");
+            } else {
+                error(dataID, "unrunnable method");
+            }
         case "definition":
             args = runNodes(args,dataID);
             const ast = memory[memory[dataID]["ast"]];
@@ -642,6 +676,11 @@ function runExecution(execution,value,args,content,dataID,type = "standard") {
             const funcDataID = allocate({"scope":"","trace":allocate(traceMake(ast)),"ast":funcAstID,"memory_addresses":[]});
             const funcScopeID = getScope(scope, ast["definitions"], funcDataID);
             memory[funcDataID]["scope"] = funcScopeID;
+            memory[funcDataID]["typeAttributes"] = allocate(toNormalObject(allocateTypedObjectContents(globalTypeAttributes,funcDataID)), funcDataID);
+            const typeAttr = memory[memory[funcDataID]["typeAttributes"]];
+            Object.keys(typeAttr).map(k => {
+                typeAttr[k] = toNormalObject(typeAttr[k]);
+            })
             const out = runSegmentRaw(execution[0]["data"]["data"], funcDataID);
             deAllocate(funcAstID, funcScopeID, memory[funcDataID]["trace"], funcDataID, ...memory[funcDataID]["memory_addresses"]);
             if (out) {
@@ -736,11 +775,18 @@ function runOperation(operation, a, b, dataID) {
                 return inst(a[0] ** b[0],"num");
             }
             error(dataID, "cannot raise", a[1], "to power", b[1]);
+        
         case "is":
             if (b[1] !== "type") { return false; }
             return inst(a[1] == b[0],"bool");
         case "in":
             return inst(castType(dataID, b, "arr")[0].map(val => getMemory([val])).findIndex(val => isEqual(val, a)) !== -1, "bool")
+        
+        case "not":
+            return inst(!castType(dataID, b,"bool")[0],"bool");
+        case "boolify":
+            return inst(castType(dataID, b,"bool")[0],"bool");
+        
         default:
             error(dataID, "unknown operation", operation);
     }
@@ -782,8 +828,18 @@ function runLogic(type, a, b, dataID) {
             error(dataID, "unknown logic type", type);
     }
 }
-function runKey(value, key, dataID) {
-    const indexedValue = castType(dataID, value, "arr", false, true);
+function runKey(value, key, isMethod, dataID) {
+    //console.log(value,key);
+    if (isMethod) {
+        const typeAttributes = memory[memory[dataID]["typeAttributes"]];
+        if (Object.keys(typeAttributes).includes(value[1])) {
+            const k = castType(dataID,key,"str")[0];
+            if (Object.keys(typeAttributes[value[1]]).includes(k)) {
+                return typeAttributes[value[1]][k];
+            }
+        }
+    }
+    const indexedValue = castType(dataID, value, "arr", false, true, true);
     if (indexedValue) {
         const index = castType(dataID, key, "num", false, true);
         if (index) {
@@ -801,17 +857,18 @@ function runKey(value, key, dataID) {
     return inst("null","null");
 }
 
-let typeAttributes = {
+let globalTypeAttributes = {
     "str": {
         "upper": inst(
             {
-                "type": "builtin",
-                "data": function(dataID, value, ...args) {
-                    return 
+                "type": "method",
+                "data": function(dataID, selfValue, ...args) {
+                    return inst(castType(dataID, selfValue, "str")[0].toUpperCase(),"str");
                 }
             },
             "func"
-        )
+        ),
+        "silly": inst("test","str")
     }
 }
 
@@ -838,7 +895,7 @@ function getScope(scope, definitions, scopeDataID) {
         "print": inst(
             {
                 "type": "builtin",
-                "data": function(dataID, value, ...args) {
+                "data": function(dataID, ...args) {
                     print(dataID, ...args.map(arg => castType(dataID, arg,"str")[0]));
 
                     // if it is only 1 argument, return that argument
@@ -854,7 +911,7 @@ function getScope(scope, definitions, scopeDataID) {
         "typeof": inst( // typeof is both a function and a spaced command
             {
                 "type": "builtin",
-                "data": function(dataID, value, ...args) {
+                "data": function(dataID, ...args) {
                     if (args.length == 1) {
                         return inst(args[0][1],"type");
                     } else {
@@ -871,7 +928,7 @@ function getScope(scope, definitions, scopeDataID) {
         "return": inst(
             {
                 "type": "builtin",
-                "data": function(dataID, value, ...args) {
+                "data": function(dataID, ...args) {
                     if (args.length > 0) {
                         if (args.length == 1) {
                             return {
@@ -894,11 +951,56 @@ function getScope(scope, definitions, scopeDataID) {
             },
             "func", {"functionType": "spaced", "functionStrict": false}
         ),
+        "len": inst(
+            {
+                "type": "builtin",
+                "data": function(dataID, ...args) {
+                    if (args.length == 1) {
+                        return inst(castType(dataID,args[0], "arr")[0].length,"num");
+                    } else {
+                        return inst(args.map(arg => inst(castType(dataID,arg, "arr")[0].length,"num")),"tuple");
+                    }
+                }
+            },
+            "func"
+        ),
+        "abs": inst(
+            {
+                "type": "builtin",
+                "data": function(dataID, ...args) {
+                    if (args.length == 1) {
+                        return inst(Math.abs(castType(dataID,args[0], "num")[0]),"num");
+                    } else {
+                        return inst(args.map(arg => inst(Math.abs(castType(dataID,arg, "num")[0]),"num")),"tuple");
+                    }
+                }
+            },
+            "func"
+        ),
+        "random": inst(
+            {
+                "type": "builtin",
+                "data": function(dataID, ...args) {
+                    if (args.length == 0) {
+                        return inst(Math.random(),"num");
+                    }
+                    if (args.length == 1) {
+                        return inst(Math.floor(Math.random() * (castType(dataID,args[0], "num")[0] + 1)),"num");
+                    }
+                    if (args.length == 2) {
+                        const a = castType(dataID,args[0], "num")[0];
+                        const b = castType(dataID,args[1], "num")[0];
+                        return inst(Math.floor(Math.random() * (b - a + 1)) + a,"num");
+                    }
+                }
+            },
+            "func"
+        ),
         // statements
         "if": inst(
             {
                 "type": "builtin_statement",
-                "data": function(dataID, value, content, ...args) {
+                "data": function(dataID, content, ...args) {
                     const val = args.every(arg => castType(dataID, runNode(arg, dataID), "bool")[0]);
                     if (val) {
                         const out = runSegmentRaw(content, dataID);
@@ -911,7 +1013,7 @@ function getScope(scope, definitions, scopeDataID) {
         "while": inst(
             {
                 "type": "builtin_statement",
-                "data": function(dataID, value, content, ...args) {
+                "data": function(dataID, content, ...args) {
                     let val = args.every(arg => castType(dataID, runNode(arg, dataID), "bool")[0]);
                     while (val) {
                         const out = runSegmentRaw(content, dataID);
@@ -925,7 +1027,7 @@ function getScope(scope, definitions, scopeDataID) {
         "until": inst(
             {
                 "type": "builtin_statement",
-                "data": function(dataID, value, content, ...args) {
+                "data": function(dataID, content, ...args) {
                     let val = args.every(arg => castType(dataID, runNode(arg, dataID), "bool")[0]);
                     while (!val) {
                         const out = runSegmentRaw(content, dataID);
@@ -939,7 +1041,7 @@ function getScope(scope, definitions, scopeDataID) {
         "for": inst(
             {
                 "type": "builtin_statement",
-                "data": function(dataID, value2, content, ...args) {
+                "data": function(dataID, content, ...args) {
                     if (args.length < 1 || args.length > 3) {
                         error(dataID, "unknown for syntax");
                     }
@@ -1017,13 +1119,12 @@ function getScope(scope, definitions, scopeDataID) {
         const key = keys[i];
         const def = definitions[key]["data"];
         if (definitions[key]["kind"] == "function") {
-            data[def["name"]] = inst(allocate(def),"func");
-            memory[scopeDataID]["memory_addresses"].push(data[def["name"]][0]);
+            data[def["name"]] = inst(allocate(def, scopeDataID),"func");
         }
     }
     // allocate all the values and functions into memory
     data["scope"] = "FSL_SCOPE_ID";
-    return allocate(allocateTypedObjectContents(Object_merge(scope, data), scopeDataID)[0]);
+    return allocate(toNormalObject(allocateTypedObjectContents(Object_merge(scope, data), scopeDataID)), scopeDataID);
 }
 function allocate(value, dataID = null, staticID = null) {
     let id = staticID;
@@ -1039,24 +1140,31 @@ function allocate(value, dataID = null, staticID = null) {
 }
 function allocateTypedObjectContents(object, dataID) {
     if (!Array.isArray(object) && typeof object == "object" && object) {
-        let data = {};
+        let data = {"keys":[],"values":[]};
         for (let i = 0; i < Object.keys(object).length; i++) {
             const key = Object.keys(object)[i];
-            if (typeof object[key] == "object" && object) {
-                data[key] = allocateTypedObject(object[key], dataID);
+            data["keys"].push(inst(key,"str"));
+            if (typeof object[key] == "object" && object[key] && !Array.isArray(object[key])) {
+                data["values"].push(allocateTypedObjectContents(object[key],dataID));
             } else {
-                data[key] = object[key];
-            }
-            if (dataID) {
-                memory[dataID]["memory_addresses"].push(data[key]);
+                data["values"].push(allocate(object[key],dataID));
             }
         }
         return inst(data,"obj");
     }
     return object;
 }
-function allocateTypedObject(object) {
-    return allocate(allocateTypedObjectContents(object));
+function allocateTypedObject(object, dataID) {
+    return allocate(allocateTypedObjectContents(object, dataID), dataID);
+}
+function toNormalObject(object) {
+    let newObj = {};
+    if (!object) { return {} }
+    for (let i = 0; i < object[0]["keys"].length; i++) {
+        const k = object[0]["keys"][i];
+        newObj[k[0]] = object[0]["values"][i];
+    }
+    return newObj;
 }
 function deAllocate(...ids) {
     for (let i = 0; i < ids.length; i++) {
@@ -1095,14 +1203,14 @@ function traceOut(dataID) {
     return dataID;
 }
 
-function castType(dataID, value, type, formatting = false, tryTo = false) {
+function castType(dataID, value, type, formatting = false, tryTo = false, doNotToArray = false) {
     if (typeof value == "string") {
         if (value == "FSL_SCOPE_ID") {
             return inst("<object:fsl_scope>","str");
         }
         value = memory[value];
     }
-    if (!value) { return inst("<error:stringify_error>","str"); }
+    if (!value && (typeof value == "object" || typeof value == "undefined") && !Array.isArray(value)) { return inst("<error:stringify_error>","str"); }
     if (value[1] === "str" && type === "str" && formatting) {
         return inst("\""+value[0].toString()+"\"","str");
     }
@@ -1133,7 +1241,6 @@ function castType(dataID, value, type, formatting = false, tryTo = false) {
             if (value[1] === "color") {
                 return inst("#"+Math.round(value[0]["r"] * 255).toString(16).padStart(2, '0')+Math.round(value[0]["g"] * 255).toString(16).padStart(2, '0')+Math.round(value[0]["b"] * 255).toString(16).padStart(2, '0'),"str");
             }
-
             return inst(value[0].toString(),"str");
         case "num":
             if (value[1] === "str") {
@@ -1141,7 +1248,7 @@ function castType(dataID, value, type, formatting = false, tryTo = false) {
                     return inst(Number(value[0]),"num");
                 }
             }
-            break
+            return inst(0, "num");
         case "bool":
             switch (value[1]) {
                 case "str":
@@ -1166,6 +1273,7 @@ function castType(dataID, value, type, formatting = false, tryTo = false) {
                 return inst(value[0].split("").map(char => allocate(inst(char,"str"), dataID)),type);
             }
             if (value[1] === "obj") {
+                if (doNotToArray) { return null;}
                 return inst(Object.keys(value[0]).map(key => allocate(inst(key,"str"), dataID)),type)
             }
             if (value[1] === "tuple" || value[1] === "arr") {
