@@ -36,7 +36,9 @@ const Object_isSame = function(e,t){if("object"!=typeof e||"object"!=typeof t)re
 const memory = {};
 
 const code = `
-print(1..20)
+foreach (silly, 1..20) {
+  print(silly);
+}
 `;
 
 export function astSegment(code, root = true) {
@@ -526,9 +528,9 @@ function runNode(node, dataID, flags = [], extraData = {}) {
     }
     switch(node["kind"]) {
         case "execution":
-            return runExecution(runNode(node["key"], dataID), node["key"], node["args"], node["content"], dataID);
+            return runExecution(runNode(node["key"], dataID), node["args"], node["content"], dataID);
         case "spacedCommand":
-            return runExecution(runNode(node["key"], dataID), node["key"], [runNode(node["data"], dataID)], null, dataID, "spaced");
+            return runExecution(runNode(node["key"], dataID), [runNode(node["data"], dataID)], null, dataID, "spaced");
         case "variable":
             // no im not explaining this
             if (flags.includes("check")) {
@@ -616,7 +618,7 @@ function runNode(node, dataID, flags = [], extraData = {}) {
             error(dataID,"unknown node type",node["kind"]);
     }
 }
-function runExecution(execution,value,args,content,dataID,type = "standard") {
+function runExecution(execution,args,content,dataID,type = "standard") {
     if (!execution)
         return inst("null","null");
     if (execution[1] !== "func") {
@@ -675,14 +677,10 @@ function runExecution(execution,value,args,content,dataID,type = "standard") {
             const typeAttr = memory[memory[funcDataID]["typeAttributes"]];
             Object.keys(typeAttr).map(k => {
                 typeAttr[k] = toNormalObject(typeAttr[k]);
-            })
+            });
             const out = runSegmentRaw(execution[0]["data"]["data"], funcDataID);
             deAllocate(funcAstID, funcScopeID, memory[funcDataID]["trace"], funcDataID, ...memory[funcDataID]["memory_addresses"]);
-            if (out) {
-                return out;
-            } else {
-                return inst("null","null");
-            }
+            return out || inst("null","null");
         default:
             error(dataID,"unknown function type",execution[0]["type"]);
             return inst("null","null");
@@ -1108,6 +1106,29 @@ function getScope(scope, definitions, scopeDataID) {
             },
             "func"
         ),
+        "foreach": inst(
+            {
+                "type": "builtin_statement",
+                "data": function(dataID, content, ...args) {
+                    if (args.length != 2) {
+                        error(dataID, "foreach requires 2 arguments");
+                    }
+                    const variable = args[0];
+                    const iterable = castType(dataID,runNode(args[1],dataID),"arr");
+                    for (let i = 0; i < iterable[0].length; i++) {
+                        runNode({
+                            "kind": "assignment",
+                            "type": "default",
+                            "key": variable,
+                            "value": memory[iterable[0][i]]
+                        },dataID);
+                        const out = runSegmentRaw(content, dataID);
+                        if (out) { return {"kind":"return","data":out}; }
+                    }
+                }
+            },
+            "func"
+        )
     };
     const keys = Object.keys(definitions);
     for (let i = 0; i < keys.length; i++) {
