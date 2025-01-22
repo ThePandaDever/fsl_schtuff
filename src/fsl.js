@@ -36,8 +36,8 @@ const Object_isSame = function(e,t){if("object"!=typeof e||"object"!=typeof t)re
 const memory = {};
 
 const code = `
-foreach (silly, 1..20) {
-  print(silly);
+foreach (silly, 0..  100) {
+    print(silly);
 }
 `;
 
@@ -127,8 +127,7 @@ function astNode(code) {
             return null;
         }
     }
-    
-    const rangeTokens = code.split("..");
+    const rangeTokens = code.split("..").map(t => t.trim());
 
     // number literal
     if (isNumeric(code)) {
@@ -142,7 +141,7 @@ function astNode(code) {
     const commandTokens = splitCommand(code);
     const highPriority = ["return"];
     if (firstSpaceTokens.length == 2) {
-        if (highPriority.includes(firstSpaceTokens[0])) {
+        if (highPriority.includes(firstSpaceTokens[0]) && isValidVariableFormat(firstSpaceTokens[0])) {
             return {
                 "kind": "spacedCommand",
                 "key": astNode(firstSpaceTokens[0]),
@@ -268,7 +267,7 @@ function astNode(code) {
     }
 
     const restricted = ["fn","else"];
-    if (firstSpaceTokens.length == 2 && isValidDefinitionFormat(firstSpaceTokens[0]) && !restricted.includes(firstSpaceTokens[0])) {
+    if (firstSpaceTokens.length == 2 && isValidVariableFormat(firstSpaceTokens[0]) && !restricted.includes(firstSpaceTokens[0])) {
         if (!(isBrackets(commandTokens[1]) && commandTokens.length == 2) &&
             !(isBrackets(commandTokens[1]) && isCurlyBrackets(commandTokens[2]) && commandTokens.length == 3)) {
             return {
@@ -435,6 +434,7 @@ function astNode(code) {
 
     // a..b range operator
     if (rangeTokens.length == 2) {
+        console.log(rangeTokens);
         return {
             "kind": "range",
             "a": astNode(rangeTokens[0]),
@@ -978,12 +978,12 @@ function getScope(scope, definitions, scopeDataID) {
                         return inst(Math.random(),"num");
                     }
                     if (args.length == 1) {
-                        return inst(Math.floor(Math.random() * (castType(dataID,args[0], "num")[0] + 1)),"num");
+                        return inst(Math.random() * (castType(dataID,args[0], "num")[0] + 1),"num");
                     }
                     if (args.length == 2) {
                         const a = castType(dataID,args[0], "num")[0];
                         const b = castType(dataID,args[1], "num")[0];
-                        return inst(Math.floor(Math.random() * (b - a + 1)) + a,"num");
+                        return inst(Math.random() * (b - a + 1) + a,"num");
                     }
                 }
             },
@@ -1378,7 +1378,7 @@ function error(dataID, ...text) {
 
 // is being run directly (nodeJS)
 if (import.meta.url === `file:///${process.argv[1].replace(/\\/g,"/")}`) {
-    //console.log(JSON.stringify(astSegment(code)));
+    console.log(JSON.stringify(astSegment(code)));
     const out = runFunction(astSegment(code),"main",{},true,true);
     if (out)
         print(null,"out:",out);
