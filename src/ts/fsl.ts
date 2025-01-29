@@ -2,81 +2,7 @@
 function splitLogic(t){const e=[];let i="",r=!1,s=!1,n=0,u=0,c=0,o=!1;const l=/(\|\||&&)/;for(let p=0;p<t.length;p++){const m=t[p];if(o)i+=m,o=!1;else if("\\"!==m){if("'"!==m||s||o?'"'!==m||r||o||(s=!s):r=!r,r||s||("["===m?n++:"]"===m?n--:"{"===m?u++:"}"===m?u--:"("===m?c++:")"===m&&c--),!r&&!s&&0===n&&0===u&&0===c){const r=t.slice(p).match(l);if(r&&0===r.index){i.trim()&&(e.push(i.trim()),i=""),e.push(r[0]),p+=r[0].length-1;continue}}i+=m}else o=!0,i+=m}return i.trim()&&e.push(i.trim()),e}
 function splitOperators(t,e){const i=[];let r="",s=!1,n=!1,u=0,c=0,o=0,l=!1;for(let p=0;p<t.length;p++){const m=t[p];l?(l=!1,r+=m):"\\"!==m?"'"!==m||n||u||c||o?'"'!==m||s||u||c||o?s||n?r+=m:("["===m?u++:"]"===m?u--:"{"===m?c++:"}"===m?c--:"("===m?o++:")"===m&&o--,e.includes(m)&&0===u&&0===c&&0===o?"+"!=m||"+"==m&&"+"!=t[p-1]&&"+"!=t[p+1]?(r.trim()&&i.push(r.trim()),i.push(m),r=""):("+"==m&&"+"==t[p+1]&&(i.push(r.trim()),r=""),r+=m,"+"==m&&"+"==t[p-1]&&(i.push(r.trim()),r="")):r+=m):(l||(n=!n),r+=m):(l||(s=!s),r+=m):(l=!0,r+=m)}return r.trim()&&i.push(r.trim()),i}
 function splitStatement(t){const e=[];let i="",r=0,s=0,n=!1,u="",c=0;for(;c<t.length;){const o=t[c],l=t[c-1];'"'!==o&&"'"!==o||"\\"===l||(n?o===u&&(n=!1):(n=!0,u=o)),n?i+=o:"("===o?(s++,i+=o):")"===o?(s--,i+=o):"{"===o?(0===s&&0===r&&i.trim()&&(e.push(i.trim()),i=""),i+=o,r++):"}"===o?(r--,i+=o,0===s&&0===r&&i.trim()&&(e.push(i.trim()),i="")):";"===o&&0===r&&0===s?(e.push(i.trim()),i=""):i+=o,c++}return i.trim()&&e.push(i.trim()),e}
-function splitSegment(input) {
-  let segments = [];
-  let currentSegment = "";
-  let inSingleQuote = false;
-  let inDoubleQuote = false;
-  let braceDepth = 0; // Tracks {}
-  let bracketDepth = 0; // Tracks []
-  let parenDepth = 0; // Tracks ()
-  
-  for (let i = 0; i < input.length; i++) {
-    const char = input[i];
-    const prevChar = i > 0 ? input[i - 1] : null;
-    const isEscaped = prevChar === "\\";
-
-    // Handle string quotes correctly
-    if (char === '"' && !inSingleQuote && !isEscaped) {
-      inDoubleQuote = !inDoubleQuote;
-    } else if (char === "'" && !inDoubleQuote && !isEscaped) {
-      inSingleQuote = !inSingleQuote;
-    }
-
-    // If inside a string, just add the character and continue
-    if (inSingleQuote || inDoubleQuote) {
-      currentSegment += char;
-      continue;
-    }
-
-    // Track nesting levels
-    switch (char) {
-      case "{":
-        braceDepth++;
-        break;
-      case "}":
-        braceDepth--;
-        break;
-      case "[":
-        bracketDepth++;
-        break;
-      case "]":
-        bracketDepth--;
-        break;
-      case "(":
-        parenDepth++;
-        break;
-      case ")":
-        parenDepth--;
-        break;
-    }
-
-    // Handle top-level splitting on `;`
-    if (char === ";" && braceDepth === 0 && bracketDepth === 0 && parenDepth === 0) {
-      segments.push(currentSegment.trim()); // Add current segment without `;`
-      currentSegment = ""; // Reset for the next segment
-      continue; // Skip adding `;` to the next segment
-    }
-
-    // Handle splitting after `}` or `]` at top level
-    if ((char === "}" || char === "]") && braceDepth === 0 && bracketDepth === 0 && parenDepth === 0) {
-      currentSegment += char; // Keep `}` or `]` in the segment
-      segments.push(currentSegment.trim()); // Push the current segment
-      currentSegment = ""; // Reset for the next segment
-      continue; // Skip further processing for this character
-    }
-
-    // Add character to current segment
-    currentSegment += char;
-  }
-
-  // Push the last segment if it exists
-  if (currentSegment.trim()) {
-    segments.push(currentSegment.trim());
-  }
-
-  return segments;
-}
+function splitSegment(e){let a=[],r="",s=!1,t=!1,$=0,c=0,l=0,b=-1;for(let i of e){b++;let k="\\"===(b>0?e[b-1]:null);if('"'!==i||s||k||(t=!t),"'"!==i||t||k||(s=!s),s||t)r+=i;else switch(i){case"{":l++,r+=i;break;case"}":l--,r+=i,0===$&&0===l&&0===c&&["\n"," "].includes(e[b+1])&&r&&(a.push(r.trim()),r="");break;case"[":c++,r+=i;break;case"]":c--,r+=i;break;case"(":$++,r+=i;break;case")":$--,r+=i;break;case";":0===$&&0===l&&0===c?r&&(a.push(r.trim()),r=""):r+=i;break;default:r+=i}}return r&&a.push(r.trim()),a}
 function splitAssignment(t,l){let e=[],i="",r=!1,s=!1,n=!0,u=0,c=0,o=0,p=l.concat("="),m=-1;for(let h of t){m++;const f="\\"===(m>0?t[m-1]:null);if('"'!==h||r||f||(s=!s),"'"!==h||s||f||(r=!r),r||s)i+=h;else switch(h){case"{":o++,i+=h;break;case"}":o--,i+=h,0===u&&0===o&&0===c&&i&&(e.push(i.trim()),i="");break;case"[":c++,i+=h;break;case"]":c--,i+=h;break;case"(":u++,i+=h;break;case")":u--,i+=h;break;case"=":if(0===u&&0===o&&0===c&&n&&l.includes(t[m-1])&&n&&!l.includes(h)){i+=h,e.push(i.trim()),i="",n=!1;continue}0!==u||0!==o||0!==c||!n||p.includes(t[m+1])||p.includes(t[m-1])?i+=h:(l.includes(t[m-1])?(i+=h,i&&e.push(i.trim()),i=""):(i.trim()&&e.push(i.trim()),e.push(h),i=""),n=!1);break;default:0===u&&0===o&&0===c&&l.includes(t[m+1])&&p.includes(t[m+2])&&n&&(i.trim()&&e.push(i.trim()),i=""),i+=h}}return i&&e.push(i.trim()),e}
 function splitByFirstSpace(t){const e=(t=t.trim()).indexOf(" ");if(-1===e)return[t];return[t.slice(0,e),t.slice(e+1)]}
 function splitCharedCommand(t,e){const i=[];let r="",s=!1,n=!1,u=0,c=0,o=0,l=!1;for(let p=0;p<t.length;p++){const m=t[p];if(l)r+=m,l=!1;else if("\\"!==m)if('"'!==m||n||0!==u||0!==c||0!==o)if("'"!==m||s||0!==u||0!==c||0!==o){if(!s&&!n){if("("===m){u++,r+=m;continue}if("{"===m){c++,r+=m;continue}if("["===m){o++,r+=m;continue}if(")"===m&&u>0){u--,r+=m;continue}if("}"===m&&c>0){c--,r+=m;continue}if("]"===m&&o>0){o--,r+=m;continue}}m!==e||s||n||0!==u||0!==c||0!==o?r+=m:r.length>0&&(i.push(r.trim()),r="")}else n=!n,r+=m;else s=!s,r+=m;else l=!0,r+=m}return r.length>0&&i.push(r.trim()),i}
@@ -110,13 +36,6 @@ const Object_isSame = function(e,t){if("object"!=typeof e||"object"!=typeof t)re
 const memory = {};
 
 const code = `
-fn canCast(any value, type toType) {
-    val = cast(value,toType);
-}
-
-fn runFvl([str,num] value, obj data) {
-    
-}
 
 `;
 
@@ -124,13 +43,12 @@ export function astSegment(code, root = true) {
     code = removeComments(code);
     const elements = splitSegment(code);
     let ast = {"data":[],"definitions":[]};
-    //console.log(elements);
     for (let i = 0; i < elements.length; i++) {
         const element = elements[i];
         if (!element)
             continue;
         
-        const out = astNode(element.trim());
+        const out = astNode(element);
         if (!out)
             continue;
         
@@ -201,24 +119,21 @@ function astDefintionArguments(code) {
     return data;
 }
 function astNode(code) {
-    if (code.trim() == "") { return null }
     if (!code) { return null }
     if (code.length >= 2) {
         if (code.substring(0, 2) == "##") {
             return null;
         }
     }
-    //console.log("(",code,")");
+    const rangeTokens = code.split("..").map(t => t.trim());
 
     // number literal
-    try {
-        if (isNumeric(code)) {
-            return [
-                parseFloat(code),
-                "num"
-            ];
-        }
-    } catch {}
+    if (isNumeric(code)) {
+        return [
+            parseFloat(code),
+            "num"
+        ];
+    }
     
     const firstSpaceTokens = splitByFirstSpace(code);
     const commandTokens = splitCommand(code);
@@ -290,8 +205,7 @@ function astNode(code) {
     if (spaceTokens.length >= 3) {
         const spacedOperations = [
             "is",
-            "in",
-            "to"
+            "in"
         ]
         if (spacedOperations.includes(spaceTokens[spaceTokens.length - 2])) {
             return {
@@ -335,7 +249,6 @@ function astNode(code) {
         }
     }
 
-    // prefixes
     switch (code[0]) {
         case "!":
             return {
@@ -349,12 +262,6 @@ function astNode(code) {
                 "operator": "boolify",
                 "b": astNode(code.substring(1))
             };
-        case "-":
-            return {
-                "kind": "operation",
-                "operator": "negate",
-                "b": astNode(code.substring(1))
-            }
     }
 
     const restricted = ["fn","else"];
@@ -464,7 +371,7 @@ function astNode(code) {
     }
 
     const methodTokens = splitCharedCommand(code,".");
-    if (methodTokens.length > 1) {
+    if (methodTokens.length > 1 && rangeTokens.length != 2) {
         const method = methodTokens.pop();
         if (isValidVariableFormat(method)) {
             return {
@@ -524,6 +431,15 @@ function astNode(code) {
         ];
     }
 
+    // a..b range operator
+    if (rangeTokens.length == 2) {
+        return {
+            "kind": "range",
+            "a": astNode(rangeTokens[0]),
+            "b": astNode(rangeTokens[1])
+        }
+    }
+
     if (code[0] === "#" && (code.length == 4 || code.length == 7)) {
         return inst(hexToFloats(code),"color");
     }
@@ -572,9 +488,6 @@ function runFunctionRaw(content, segment, scope = {}, stringify = false) {
     const typeAttr = memory[memory[dataID]["typeAttributes"]];
     Object.keys(typeAttr).map(k => {
         typeAttr[k] = toNormalObject(typeAttr[k]);
-        Object.keys(typeAttr[k]).map(k2 => {
-            memory[typeAttr[k][k2]] = inst({"type":"method","data":memory[typeAttr[k][k2]]},"func");
-        })
     })
     memory[dataID]["scope"] = scopeID;
     memory[dataID]["stack_value"] = null;
@@ -658,7 +571,7 @@ function runNode(node, dataID, flags = [], extraData = {}) {
             return value;
         case "key":
             let keyOrg = runNode(node["data"], dataID);
-            const id = runKey(keyOrg, runNode(node["key"], dataID), node["isMethod"], flags.includes("assignment"), dataID);
+            const id = runKey(keyOrg, runNode(node["key"], dataID), node["isMethod"], dataID);
             if (flags.includes("assignment")) {
                 return id;
             }
@@ -671,6 +584,16 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                 return keyOut;
             }
             return inst("null","null");
+        case "range":
+            let range = [];
+            const a = runNode(node["a"], dataID), b = runNode(node["b"], dataID);
+            if (a[1] != "num" || b[1] != "num") {
+                error(dataID, "both sides of range must be a num");
+            }
+            for (let i = a[0]; i <= b[0]; i++) {
+                range.push(allocate(inst(i,"num"), dataID));
+            }
+            return inst(range, "tuple");
         case "cast":
             const type = runNode(node["type"], dataID);
             if (type[1] !== "type") {
@@ -697,13 +620,6 @@ function runNode(node, dataID, flags = [], extraData = {}) {
 function runExecution(execution,args,content,dataID,type = "standard") {
     if (!execution)
         return inst("null","null");
-    if (execution[1] === "num") {
-        let amt = 0;
-        args.map(v => {
-            amt += castType(v,"num")[0];
-        })
-        return inst(amt * execution[0],"num");
-    }
     if (execution[1] !== "func") {
         error(dataID,"cannot run values of type",execution[1]);
         return inst("null","null");
@@ -862,14 +778,6 @@ function runOperation(operation, a, b, dataID) {
             return inst(!castType(dataID, b,"bool")[0],"bool");
         case "boolify":
             return inst(castType(dataID, b,"bool")[0],"bool");
-        case "to":
-            let range = [];
-            a = runNode(a, dataID), b = runNode(b, dataID);
-            a = castType(dataID, a, "num"), b = castType(dataID, b, "num");
-            for (let i = a[0]; i <= b[0]; i++) {
-                range.push(allocate(inst(i,"num"), dataID));
-            }
-            return inst(range, "tuple");
         
         default:
             error(dataID, "unknown operation", operation);
@@ -912,7 +820,7 @@ function runLogic(type, a, b, dataID) {
             error(dataID, "unknown logic type", type);
     }
 }
-function runKey(value, key, isMethod, create, dataID) {
+function runKey(value, key, isMethod, dataID) {
     //console.log(value,key);
     if (isMethod) {
         const typeAttributes = memory[memory[dataID]["typeAttributes"]];
@@ -926,9 +834,6 @@ function runKey(value, key, isMethod, create, dataID) {
     const indexedValue = castType(dataID, value, "arr", false, true, true);
     if (indexedValue) {
         const index = castType(dataID, key, "num", false, true);
-        if (index[0] >= indexedValue[0].length || index[0] < 0) {
-            return inst("null","null");
-        }
         if (index) {
             return indexedValue[0][index[0]];
         }
@@ -938,13 +843,6 @@ function runKey(value, key, isMethod, create, dataID) {
             const keyIndex = value[0]["keys"].findIndex(objKey => Object_isSame(objKey, key));
             if (keyIndex > -1) {
                 return value[0]["values"][keyIndex];
-            } else {
-                if (create) {
-                    value[0]["keys"].push(key);
-                    let id = allocate(inst("null","null"),dataID);
-                    value[0]["values"].push(id);
-                    return id;
-                }
             }
         }
     }
@@ -952,22 +850,18 @@ function runKey(value, key, isMethod, create, dataID) {
 }
 
 let globalTypeAttributes = {
-    "obj": {
-        "keys": function(dataID, selfValue, ...args) {
-            return inst(selfValue[0]["keys"].map(v => allocate(v)),"tuple");
-        },
-        "values": function(dataID, selfValue, ...args) {
-            return inst(selfValue[0]["values"],"tuple");
-        },
-    },
     "str": {
-        "upper": function(dataID, selfValue, ...args) {
-            return inst(selfValue[0].toUpperCase(),"str");
-        },
-        "lower": function(dataID, selfValue, ...args) {
-            return inst(selfValue[0].toUpperCase(),"str");
-        },
-    },
+        "upper": inst(
+            {
+                "type": "method",
+                "data": function(dataID, selfValue, ...args) {
+                    return inst(castType(dataID, selfValue, "str")[0].toUpperCase(),"str");
+                }
+            },
+            "func"
+        ),
+        "silly": inst("test","str")
+    }
 }
 
 function getScope(scope, definitions, scopeDataID) {
@@ -1090,27 +984,6 @@ function getScope(scope, definitions, scopeDataID) {
                         const b = castType(dataID,args[1], "num")[0];
                         return inst(Math.random() * (b - a + 1) + a,"num");
                     }
-                }
-            },
-            "func"
-        ),
-        "cast": inst(
-            {
-                "type": "builtin",
-                "data": function(dataID, ...args) {
-                    if (args.length != 2) {
-                        error(dataID, "cast requires exactly 2 arguments");
-                    }
-                    const value = runNode(args[0], dataID);
-                    const type = runNode(args[1], dataID);
-                    if (type[1] !== "type") {
-                        error(dataID, "second argument to cast must be a type");
-                    }
-                    const out = castType(dataID, value, type[0], false, true);
-                    if (!out) {
-                        return ["null","null"]
-                    }
-                    return out;
                 }
             },
             "func"
@@ -1413,9 +1286,6 @@ function castType(dataID, value, type, formatting = false, tryTo = false, doNotT
                     return inst(Number(value[0]),"num");
                 }
             }
-            if (tryTo) {
-                return null;
-            }
             return inst(0, "num");
         case "bool":
             switch (value[1]) {
@@ -1482,7 +1352,12 @@ function isTypeEqual(typeA,typeB) {
     return false;
 }
 function isTypes(type,types) {
-    return types.some(typeB => isTypeEqual(type,typeB));
+    for (let i = 0; i < types.length; i++) {
+        if (!isTypeEqual(type,types[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 function inst(value,type,extra=null) { // short version of instance type
     if (type === "color") {
@@ -1523,40 +1398,14 @@ function error(dataID, ...text) {
     process.exit();
 }
 
-
-
-import fs from 'fs';
-
-
 // is being run directly (nodeJS)
 if (import.meta.url === `file:///${process.argv[1].replace(/\\/g,"/")}`) {
-    // is being run on a file (nodeJS)
-    if (!!process.argv[2]) {
-        const filePath = process.argv[2];
-        fs.readFile(filePath, 'utf8', (err, data) => {
-            if (err) {
-                console.error('Error reading file:', err);
-                process.exit(1);
-            }
-            const ast = astSegment(data);
-            //console.log(JSON.stringify(ast));
-            const result = runFunction(ast, "main", {}, true, true);
-            if (result) {
-                print(null, "out:", result);
-            }
-            if (Object.keys(memory).length) {
-                console.warn(Object.keys(memory).length, "memory item(s) still allocated");
-                console.warn(memory);
-            }
-        });
-    } else {
-        //console.log(JSON.stringify(astSegment(code)));
-        const out = runFunction(astSegment(code),"main",{},true,true);
-        if (out)
-            print(null,"out:",out);
-        if (Object.keys(memory).length) {
-            console.warn(Object.keys(memory).length, "memory item(s) still allocated");
-            console.warn(memory);
-        }
+    //console.log(JSON.stringify(astSegment(code)));
+    const out = runFunction(astSegment(code),"main",{},true,true);
+    if (out)
+        print(null,"out:",out);
+    if (Object.keys(memory).length) {
+        console.warn(Object.keys(memory).length, "memory item(s) still allocated");
+        console.warn(memory);
     }
 }

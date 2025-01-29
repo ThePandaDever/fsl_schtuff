@@ -1,0 +1,11 @@
+
+fn split(str text) {
+
+}
+
+fn runFvl([str,num] value, obj data) {
+    numVal = (num)value;
+    print(numVal);
+}
+
+print(runFvl("5, add, 2", {}));

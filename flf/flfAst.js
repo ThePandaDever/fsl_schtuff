@@ -2,8 +2,7 @@
 import { astSegment } from "../src/fsl.js";
 
 const ast = astSegment(process.argv[2]);
-const long = JSON.stringify(ast,null,"    ");
-console.log(JSON.stringify(ast));
+const long = JSON.stringify(ast);
 if (long.length > 4000) {
     console.log(JSON.stringify(ast));
 } else {
