@@ -1,0 +1,10 @@
+fn plural(val, description) {
+  if (val > 2) { val = 2 } // i dont have ? or max or min yet soooo
+  return description ++ ("s" * abs(val - 1));
+}
+
+txt = "";
+foreach (i, 0 to 10) {
+    txt += plural(i, "house");
+}
+return txt;

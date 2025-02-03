@@ -1,3 +1,4 @@
+import promptSync from 'prompt-sync';
 
 function splitLogic(t){const e=[];let i="",r=!1,s=!1,n=0,u=0,c=0,o=!1;const l=/(\|\||&&)/;for(let p=0;p<t.length;p++){const m=t[p];if(o)i+=m,o=!1;else if("\\"!==m){if("'"!==m||s||o?'"'!==m||r||o||(s=!s):r=!r,r||s||("["===m?n++:"]"===m?n--:"{"===m?u++:"}"===m?u--:"("===m?c++:")"===m&&c--),!r&&!s&&0===n&&0===u&&0===c){const r=t.slice(p).match(l);if(r&&0===r.index){i.trim()&&(e.push(i.trim()),i=""),e.push(r[0]),p+=r[0].length-1;continue}}i+=m}else o=!0,i+=m}return i.trim()&&e.push(i.trim()),e}
 function splitOperators(t,e){const i=[];let r="",s=!1,n=!1,u=0,c=0,o=0,l=!1;for(let p=0;p<t.length;p++){const m=t[p];l?(l=!1,r+=m):"\\"!==m?"'"!==m||n||u||c||o?'"'!==m||s||u||c||o?s||n?r+=m:("["===m?u++:"]"===m?u--:"{"===m?c++:"}"===m?c--:"("===m?o++:")"===m&&o--,e.includes(m)&&0===u&&0===c&&0===o?"+"!=m||"+"==m&&"+"!=t[p-1]&&"+"!=t[p+1]?(r.trim()&&i.push(r.trim()),i.push(m),r=""):("+"==m&&"+"==t[p+1]&&(i.push(r.trim()),r=""),r+=m,"+"==m&&"+"==t[p-1]&&(i.push(r.trim()),r="")):r+=m):(l||(n=!n),r+=m):(l||(s=!s),r+=m):(l=!0,r+=m)}return r.trim()&&i.push(r.trim()),i}
@@ -110,14 +111,7 @@ const Object_isSame = function(e,t){if("object"!=typeof e||"object"!=typeof t)re
 const memory = {};
 
 const code = `
-fn canCast(any value, type toType) {
-    val = cast(value,toType);
-}
-
-fn runFvl([str,num] value, obj data) {
-    
-}
-
+return ("hi" is null, "hi" is nullish)
 `;
 
 export function astSegment(code, root = true) {
@@ -223,6 +217,7 @@ function astNode(code) {
     const firstSpaceTokens = splitByFirstSpace(code);
     const commandTokens = splitCommand(code);
     const highPriority = ["return"];
+    const lowPriority = ["new"];
     if (firstSpaceTokens.length == 2) {
         if (highPriority.includes(firstSpaceTokens[0]) && isValidVariableFormat(firstSpaceTokens[0])) {
             return {
@@ -287,12 +282,13 @@ function astNode(code) {
     }
     const spaceTokens = splitCharedCommand(code, " ");
 
+    const spacedOperations = [
+        "is",
+        "in",
+        "to",
+        "isnt"
+    ]
     if (spaceTokens.length >= 3) {
-        const spacedOperations = [
-            "is",
-            "in",
-            "to"
-        ]
         if (spacedOperations.includes(spaceTokens[spaceTokens.length - 2])) {
             return {
                 "kind": "operation",
@@ -360,7 +356,8 @@ function astNode(code) {
     const restricted = ["fn","else"];
     if (firstSpaceTokens.length == 2 && isValidVariableFormat(firstSpaceTokens[0]) && !restricted.includes(firstSpaceTokens[0])) {
         if (!(isBrackets(commandTokens[1]) && commandTokens.length == 2) &&
-            !(isBrackets(commandTokens[1]) && isCurlyBrackets(commandTokens[2]) && commandTokens.length == 3)) {
+            !(isBrackets(commandTokens[1]) && isCurlyBrackets(commandTokens[2]) && commandTokens.length == 3) &&
+            !lowPriority.includes(firstSpaceTokens[0])) {
             return {
                 "kind": "spacedCommand",
                 "key": astNode(firstSpaceTokens[0]),
@@ -460,6 +457,16 @@ function astNode(code) {
                 "key": astNode(commandTokens.join("")),
                 "args": []
             };
+        }
+    }
+
+    if (firstSpaceTokens.length == 2) {
+        if (lowPriority.includes(firstSpaceTokens[0]) && isValidVariableFormat(firstSpaceTokens[0])) {
+            return {
+                "kind": "spacedCommand",
+                "key": astNode(firstSpaceTokens[0]),
+                "data": astNode(firstSpaceTokens[1])
+            }
         }
     }
 
@@ -626,7 +633,13 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                 if (flags.includes("assignment")) {
                     return memory[memory[dataID]["scope"]][node["name"]];
                 }
-                return getMemory(memory[memory[dataID]["scope"]][node["name"]],dataID);
+                const id = memory[memory[dataID]["scope"]][node["name"]];
+                const v = getMemory(id,dataID);
+                if (v.length == 2) {
+                    v.push({});
+                }
+                v[2]["memoryAddress"] = id;
+                return handleValue(v, dataID);
             } else {
                 if (flags.includes("assignment")) {
                     const id = randomStr(10);
@@ -637,6 +650,7 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                 error(dataID,"variable not defined",node["name"]);
                 return inst("null","null");
             }
+            break;
         case "operation":
             return runOperation(node["operator"], runNode(node["a"], dataID), runNode(node["b"], dataID), dataID);
         case "comparison":
@@ -663,12 +677,12 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                 return id;
             }
             let keyOut = getMemory(id, dataID);
-            if (keyOut) {
+            if (keyOut && Array.isArray(keyOut)) {
                 if (keyOut.length == 2) {
                     keyOut.push({});
                 }
                 keyOut[2]["original"] = keyOrg;
-                return keyOut;
+                return handleValue(keyOut,dataID);
             }
             return inst("null","null");
         case "cast":
@@ -713,7 +727,7 @@ function runExecution(execution,args,content,dataID,type = "standard") {
     
     if (execution.length == 3) {
         if ((execution[2]["functionType"] ? execution[2]["functionType"] : "standard") != type) {
-            if (execution[2]["functionStrict"] != null ? execution[2]["functionStrict"] : true) {
+            if (execution[2]["functionStrict"] != null ? execution[2]["functionStrict"] : false) {
                 error(dataID,"cannot run",type,"as",execution[2]["functionType"])
             }
         }
@@ -735,7 +749,7 @@ function runExecution(execution,args,content,dataID,type = "standard") {
             return inst("null","null");
         case "method":
             if (typeof execution[2] === "object" && execution[2] && execution[2]["original"]) {
-                const data3 = execution[0]["data"](dataID, execution[2]["original"], content, ...args);
+                const data3 = execution[0]["data"](dataID, execution[2]["original"], ...args);
                 if (data3) {
                     return data3;
                 }
@@ -743,6 +757,7 @@ function runExecution(execution,args,content,dataID,type = "standard") {
             } else {
                 error(dataID, "unrunnable method");
             }
+            break;
         case "definition":
             args = runNodes(args,dataID);
             const ast = memory[memory[dataID]["ast"]];
@@ -760,7 +775,10 @@ function runExecution(execution,args,content,dataID,type = "standard") {
             const typeAttr = memory[memory[funcDataID]["typeAttributes"]];
             Object.keys(typeAttr).map(k => {
                 typeAttr[k] = toNormalObject(typeAttr[k]);
-            });
+                Object.keys(typeAttr[k]).map(k2 => {
+                    memory[typeAttr[k][k2]] = inst({"type":"method","data":memory[typeAttr[k][k2]]},"func");
+                })
+            })
             const out = runSegmentRaw(execution[0]["data"]["data"], funcDataID);
             deAllocate(funcAstID, funcScopeID, memory[funcDataID]["trace"], funcDataID, ...memory[funcDataID]["memory_addresses"]);
             return out || inst("null","null");
@@ -830,9 +848,11 @@ function runOperation(operation, a, b, dataID) {
                 return inst(a[0] * b[0],"num");
             }
             if (b[1] == "num") {
+                if (b[0] < 0) { b[0] = 0 }
                 return inst(castType(dataID, a,"str")[0].repeat(b[0]),"str");
             }
             if (a[1] == "num") {
+                if (a[0] < 0) { a[0] = 0 }
                 return inst(castType(dataID, b,"str")[0].repeat(a[0]),"str");
             }
             error(dataID, "cannot multiply", a[1], "by", b[1]);
@@ -853,10 +873,10 @@ function runOperation(operation, a, b, dataID) {
             error(dataID, "cannot raise", a[1], "to power", b[1]);
         
         case "is":
-            if (b[1] !== "type") { return false; }
+            if (b[1] !== "type") { return inst(false,"bool"); }
             return inst(a[1] == b[0],"bool");
         case "in":
-            return inst(castType(dataID, b, "arr")[0].map(val => getMemory([val])).findIndex(val => isEqual(val, a)) !== -1, "bool")
+            return inst(castType(dataID, b, "arr")[0].map(val => getMemory([val])).findIndex(val => isEqual(val, a)) !== -1, "bool");
         
         case "not":
             return inst(!castType(dataID, b,"bool")[0],"bool");
@@ -926,16 +946,18 @@ function runKey(value, key, isMethod, create, dataID) {
     const indexedValue = castType(dataID, value, "arr", false, true, true);
     if (indexedValue) {
         const index = castType(dataID, key, "num", false, true);
-        if (index[0] >= indexedValue[0].length || index[0] < 0) {
-            return inst("null","null");
-        }
         if (index) {
-            return indexedValue[0][index[0]];
+            if (index[0] >= indexedValue[0].length || index[0] < 0) {
+                return inst("null","null");
+            }
+            if (index) {
+                return indexedValue[0][index[0]];
+            }
         }
     }
     if (value[0] && !Array.isArray(value[0]) && typeof value[0] == "object") {
         if (value[0]["keys"]) {
-            const keyIndex = value[0]["keys"].findIndex(objKey => Object_isSame(objKey, key));
+            const keyIndex = value[0]["keys"].findIndex(objKey => Object_isSame(objKey, [key[0],key[1]]));
             if (keyIndex > -1) {
                 return value[0]["values"][keyIndex];
             } else {
@@ -951,22 +973,164 @@ function runKey(value, key, isMethod, create, dataID) {
     return inst("null","null");
 }
 
-let globalTypeAttributes = {
+const globalTypeAttributes = {
     "obj": {
-        "keys": function(dataID, selfValue, ...args) {
-            return inst(selfValue[0]["keys"].map(v => allocate(v)),"tuple");
+        "keys": function(dataID, selfValue) {
+            return inst(selfValue[0]["keys"].map(v => allocate(v,dataID)),"tuple");
         },
-        "values": function(dataID, selfValue, ...args) {
+        "values": function(dataID, selfValue) {
             return inst(selfValue[0]["values"],"tuple");
         },
     },
+    "arr": {
+        "append": function(dataID, selfValue, ...args) {
+            if (selfValue.length !== 3) {
+                error("cannot append to non-allocated array.");
+            }
+            let vals = args.map(v => allocate(v,dataID));
+            let data = memory[selfValue[2]["memoryAddress"]][0];
+            data = data.concat(vals);
+            memory[selfValue[2]["memoryAddress"]][0] = data;
+            
+            if (vals.length > 1) {
+                return inst(vals,"tuple");
+            } else {
+                return memory[vals[0]];
+            }
+        },
+        "concat": function(dataID, selfValue, ...args) {
+            let data = memory[selfValue[2]["memoryAddress"]][0];
+            for (let i = 0; i < args.length; i++) {
+                const elem = castType(dataID,runNode(args[i],dataID),"arr");
+                const vals = elem[0];
+                data = data.concat(vals);
+            }
+            memory[selfValue[2]["memoryAddress"]][0] = data;
+        },
+        "pop": function(dataID, selfValue) {
+            let data = memory[selfValue[2]["memoryAddress"]][0];
+            let value = data.pop();
+            memory[selfValue[2]["memoryAddress"]][0] = data;
+            return getMemory(value,dataID);
+        },
+        "shift": function(dataID, selfValue) {
+            let data = memory[selfValue[2]["memoryAddress"]][0];
+            let value = data.shift();
+            memory[selfValue[2]["memoryAddress"]][0] = data;
+            return getMemory(value,dataID);
+        },
+        "indexOf": function(dataID, selfValue, ...args) {
+            const values = [];
+            for (let arg = 0; arg < args.length; arg++) {
+                const searchValue = runNode(args[arg], dataID);
+                const index = selfValue[0].findIndex(item => isEqual(getMemory(item,dataID), searchValue));
+                values.push(inst(index));
+            }
+            if (values.length == 1) {
+                return values[0];
+            } else {
+                return inst(values.map(v => allocate(v,dataID)),"tuple");
+            }
+        },
+        "sort": function(dataID, selfValue) {
+            let data = Object_clone(memory[selfValue[2]["memoryAddress"]][0]);
+            data.sort((a, b) => {
+                const valA = castType(dataID, getMemory(a, dataID), "num")[0];
+                const valB = castType(dataID, getMemory(b, dataID), "num")[0];
+                return valA - valB;
+            });
+            return inst(data,"arr");
+        },
+        "join": function(dataID, selfValue, ...args) {
+            let data = memory[selfValue[2]["memoryAddress"]][0];
+            let separator = args.length > 0 ? castType(dataID, runNode(args[0],data), "str")[0] : ",";
+            data = data.map(value => castType(dataID, value, "str")[0]).join(separator);
+            return inst(data, "str");
+        },
+    },
     "str": {
-        "upper": function(dataID, selfValue, ...args) {
+        "upper": function(dataID, selfValue) {
             return inst(selfValue[0].toUpperCase(),"str");
         },
-        "lower": function(dataID, selfValue, ...args) {
-            return inst(selfValue[0].toUpperCase(),"str");
+        "lower": function(dataID, selfValue) {
+            return inst(selfValue[0].toLowerCase(),"str");
         },
+        "trim": function(dataID, selfValue) {
+            return inst(selfValue[0].trim(), "str");
+        },
+        "startsWith": function(dataID, selfValue, ...args) {
+            if (args.length != 1) {
+                error(dataID, "startsWith requires exactly 1 argument");
+            }
+            const searchString = castType(dataID, runNode(args[0], dataID), "str")[0];
+            return inst(selfValue[0].startsWith(searchString), "bool");
+        },
+        "endsWith": function(dataID, selfValue, ...args) {
+            if (args.length != 1) {
+                error(dataID, "endsWith requires exactly 1 argument");
+            }
+            const searchString = castType(dataID, runNode(args[0], dataID), "str")[0];
+            return inst(selfValue[0].endsWith(searchString), "bool");
+        },
+        "after": function(dataID, selfValue, ...args) {
+            if (args.length != 1) {
+                error(dataID, "after requires exactly 1 argument");
+            }
+            const searchString = castType(dataID, runNode(args[0], dataID), "str")[0];
+            const index = selfValue[0].indexOf(searchString);
+            if (index === -1) {
+            return inst("", "str");
+            }
+            return inst(selfValue[0].substring(index + searchString.length), "str");
+        },
+        "before": function(dataID, selfValue, ...args) {
+            if (args.length != 1) {
+                error(dataID, "before requires exactly 1 argument");
+            }
+            const searchString = castType(dataID, runNode(args[0], dataID), "str")[0];
+            const index = selfValue[0].indexOf(searchString);
+            if (index === -1) {
+            return inst("", "str");
+            }
+            return inst(selfValue[0].substring(0, index), "str");
+        },
+        "split": function(dataID, selfValue, ...args) {
+            return inst(selfValue[0].split(castType(dataID,args[0],"str")[0]).map(v => inst(v,"str")),"arr");
+        },
+    },
+    "num": {
+        "round": function(dataID, selfValue) {
+            return inst(Math.round(selfValue[0]),"num");
+        },
+        "ceil": function(dataID, selfValue) {
+            return inst(Math.ceil(selfValue[0]),"num");
+        },
+        "floor": function(dataID, selfValue) {
+            return inst(Math.floor(selfValue[0]),"num");
+        },
+    }
+}
+const typeInstance = {
+    "str": function(dataID, ...args) {
+        return inst(args.map(v => castType(dataID,v,"str")[0]).join(" "),"str");
+    },
+    "bool": function(dataID, ...args) {
+        return inst(args.every(v => castType(dataID,v,"bool")[0]),"bool");
+    },
+    "tuple": function(dataID, ...args) {
+        return inst(args.map(v => allocate(v)),"tuple");
+    },
+    "obj": function(dataID, ...args) {
+        return inst({"keys":[],"values":[]},"obj");
+    },
+    "arr": function(dataID, ...args) {
+        return inst(args.map(v => allocate(v, dataID)),"arr");
+    },
+    "func": function(dataID, ...args) {
+        if (args.length !== 1) {
+            error(dataID, "args must be content")
+        }
+        return inst({"type":"definition","args":[],"data":astSegment(args[0][0])},"func");
     },
 }
 
@@ -1002,6 +1166,15 @@ function getScope(scope, definitions, scopeDataID) {
                     }
                     // if it is more than 1 argument, return it as a tuple
                     return inst(args.map(arg => allocate(arg, dataID)),"tuple");
+                }
+            },
+            "func"
+        ),
+        "log": inst(
+            {
+                "type": "builtin",
+                "data": function(dataID, ...args) {
+                    console.log(...runNodes(args,dataID));
                 }
             },
             "func"
@@ -1062,38 +1235,6 @@ function getScope(scope, definitions, scopeDataID) {
             },
             "func"
         ),
-        "abs": inst(
-            {
-                "type": "builtin",
-                "data": function(dataID, ...args) {
-                    if (args.length == 1) {
-                        return inst(Math.abs(castType(dataID,args[0], "num")[0]),"num");
-                    } else {
-                        return inst(args.map(arg => inst(Math.abs(castType(dataID,arg, "num")[0]),"num")),"tuple");
-                    }
-                }
-            },
-            "func"
-        ),
-        "random": inst(
-            {
-                "type": "builtin",
-                "data": function(dataID, ...args) {
-                    if (args.length == 0) {
-                        return inst(Math.random(),"num");
-                    }
-                    if (args.length == 1) {
-                        return inst(Math.random() * (castType(dataID,args[0], "num")[0] + 1),"num");
-                    }
-                    if (args.length == 2) {
-                        const a = castType(dataID,args[0], "num")[0];
-                        const b = castType(dataID,args[1], "num")[0];
-                        return inst(Math.random() * (b - a + 1) + a,"num");
-                    }
-                }
-            },
-            "func"
-        ),
         "cast": inst(
             {
                 "type": "builtin",
@@ -1108,9 +1249,21 @@ function getScope(scope, definitions, scopeDataID) {
                     }
                     const out = castType(dataID, value, type[0], false, true);
                     if (!out) {
-                        return ["null","null"]
+                        return inst("null","null");
                     }
                     return out;
+                }
+            },
+            "func"
+        ),
+        "new": inst(
+            {
+                "type": "builtin",
+                "data": function(dataID, ...args) {
+                    if (args.length !== 1) {
+                        error(dataID, "new must be run as new Type, or new(Type)");
+                    }
+                    return instanceTypeDefault(castType(dataID,args[0],"type")[0], dataID);
                 }
             },
             "func"
@@ -1278,6 +1431,57 @@ function getScope(scope, definitions, scopeDataID) {
             },
             "func"
         ),
+        // modules
+        "Math": {
+            "abs": inst(
+                {
+                    "type": "builtin",
+                    "data": function(dataID, ...args) {
+                        if (args.length == 1) {
+                            return inst(Math.abs(castType(dataID,args[0], "num")[0]),"num");
+                        } else {
+                            return inst(args.map(arg => inst(Math.abs(castType(dataID,arg, "num")[0]),"num")),"tuple");
+                        }
+                    }
+                },
+                "func"
+            ),
+            "round": inst(
+                {
+                    "type": "builtin",
+                    "data": function(dataID, ...args) {
+                        if (args.length == 1) {
+                            return inst(Math.round(castType(dataID,args[0], "num")[0]),"num");
+                        } else {
+                            return inst(args.map(arg => inst(Math.round(castType(dataID,arg, "num")[0]),"num")),"tuple");
+                        }
+                    }
+                },
+                "func"
+            ),
+            "random": inst(
+                {
+                    "type": "builtin",
+                    "data": function(dataID, ...args) {
+                        if (args.length == 0) {
+                            return inst(Math.random(),"num");
+                        }
+                        if (args.length == 1) {
+                            return inst(Math.random() * (castType(dataID,args[0], "num")[0] + 1),"num");
+                        }
+                        if (args.length == 2) {
+                            const a = castType(dataID,args[0], "num")[0];
+                            const b = castType(dataID,args[1], "num")[0];
+                            return inst(Math.random() * (b - a + 1) + a,"num");
+                        }
+                    }
+                },
+                "func"
+            ),
+        },
+        // references
+        "round": inst(astNode("Math.round"),"ref"),
+        "abs": inst(astNode("Math.abs"),"ref"),
     };
     const keys = Object.keys(definitions);
     for (let i = 0; i < keys.length; i++) {
@@ -1502,6 +1706,12 @@ function instanceType(value,type,extra=null) {
     else
         return [value,type];
 }
+function instanceTypeDefault(type, dataID) {
+    if (!Object.keys(typeInstance).includes(type)) {
+        error(dataID, "cannot create instance of", type);
+    }
+    return inst({"type":"builtin","data":typeInstance[type]},"func");
+}
 function isEqual(a,b) {
     if (!isTypeEqual(a[1],b[1])) {
         return false;
@@ -1513,6 +1723,12 @@ function isEqual(a,b) {
         return Object_isSame(a,b);
     }
     return a[0] === b[0];
+}
+function handleValue(value, dataID) {
+    if (value[1] == "ref") {
+        return runNode(value[0], dataID);
+    }
+    return value;
 }
 
 function print(dataID, ...text) {

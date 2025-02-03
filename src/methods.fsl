@@ -1,0 +1,52 @@
+fn main() {
+    myObject = {"name": "Flufi", "role": "Bot"};
+    myArray = [1, 14, 3, 4 , 2];
+    myString = "  Hello World  ";
+    myNumber = 3.14159;
+
+    // Object methods usage
+    objKeys = myObject.keys();
+    objValues = myObject.values();
+    print("Object Keys:", objKeys);
+    print("Object Values:", objValues);
+    
+    // Array methods usage
+    myArray.append(5,6);
+    myArray.concat([4,1],[4,7]);
+    poppedValue = myArray.pop();
+    shiftedValue = myArray.shift();
+    foundIndex = myArray.indexOf(2,4);
+    sortedArray = myArray.sort();
+    print("Array after operations:", myArray);
+    print("Popped Value:", poppedValue);
+    print("Shifted Value:", shiftedValue);
+    print("Index of 2:", foundIndex);
+    print("Sorted Array:", sortedArray);
+    print("Joined Array:", myArray.join("wow"));
+
+    // String methods usage
+    upperString = myString.lower();
+    lowerString = myString.upper();
+    trimmedString = myString.trim();
+    startsWithHello = trimmedString.startsWith("Hello");
+    endsWithWorld = trimmedString.endsWith("World");
+    substringAfterHello = myString.after("Hello");
+    substringBeforeWorld = myString.before("World");
+    splitString = myString.split(" ");
+    print("Uppercase String:", upperString);
+    print("Lowercase String:", lowerString);
+    print("Trimmed String:", trimmedString);
+    print("Starts with 'Hello':", startsWithHello);
+    print("Ends with 'World':", endsWithWorld);
+    print("Split String:", splitString);
+    print("Substring after 'Hello':", substringAfterHello);
+    print("Substring before 'World':", substringBeforeWorld);
+
+    // Number methods usage
+    roundedNumber = myNumber.round();
+    ceiledNumber = myNumber.ceil();
+    flooredNumber = myNumber.floor();
+    print("Rounded Number:", roundedNumber);
+    print("Ceiled Number:", ceiledNumber);
+    print("Floored Number:", flooredNumber);
+}

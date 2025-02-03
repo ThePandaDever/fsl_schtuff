@@ -4,7 +4,8 @@ fn split(str text) {
 }
 
 fn runFvl([str,num] value, obj data) {
-    numVal = (num)value;
+    numVal = cast(value,num);
+    if (!(numVal is nullish)) {
     print(numVal);
 }
 
