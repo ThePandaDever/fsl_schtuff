@@ -4,6 +4,7 @@
   },
   "dependencies": {
     "@types/node": "^22.10.10",
+    "open": "^10.1.0",
     "prompt-sync": "^4.2.0",
     "typescript": "^5.7.3"
   }

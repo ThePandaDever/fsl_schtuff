@@ -60,7 +60,7 @@ function splitSegment(input) {
     }
 
     // Handle splitting after `}` or `]` at top level
-    if ((char === "}" || char === "]") && braceDepth === 0 && bracketDepth === 0 && parenDepth === 0) {
+    if ((char === "}" || char === "]") && braceDepth === 0 && bracketDepth === 0 && parenDepth === 0 && [input[input.length + 1],input[input.length + 2]].includes("=")) {
       currentSegment += char; // Keep `}` or `]` in the segment
       segments.push(currentSegment.trim()); // Push the current segment
       currentSegment = ""; // Reset for the next segment
@@ -110,8 +110,14 @@ const Object_isSame = function(e,t){if("object"!=typeof e||"object"!=typeof t)re
 
 const memory = {};
 
-const code = `
-return ("hi" is null, "hi" is nullish)
+let code = `
+/*
+crazy = ["hi","wow"];
+silly = crazy[0];
+silly @= "wow";
+print(crazy);
+*/
+new func("print(\"wow\")")()
 `;
 
 export function astSegment(code, root = true) {
@@ -228,7 +234,7 @@ function astNode(code) {
         }
     }
 
-    const operators = ["+","++","-","*","/","%","^",];
+    const operators = ["+","++","-","*","/","%","^","<>","@"];
     const comparisons = {
         "==": "equal",
         "!=": "not_equal",
@@ -239,7 +245,7 @@ function astNode(code) {
         ">=": "greater_equal",
         "<=": "smaller_equal",
     }
-    
+
     const assignmentTokens = splitAssignment(code, operators);
     const assignments = {
         "=": "default",
@@ -249,7 +255,8 @@ function astNode(code) {
         "*=": "multiplication",
         "/=": "division",
         "%=": "modulo",
-        "^=": "power"
+        "^=": "power",
+        "@=": "reference"
     }
     if (assignmentTokens.length >= 3) {
         const comparisonTokens = splitComparison(code, Object.keys(comparisons));
@@ -621,9 +628,9 @@ function runNode(node, dataID, flags = [], extraData = {}) {
     }
     switch(node["kind"]) {
         case "execution":
-            return runExecution(runNode(node["key"], dataID), node["args"], node["content"], dataID);
+            return runExecution(handleValue(runNode(node["key"], dataID),dataID), node["args"], node["content"], dataID);
         case "spacedCommand":
-            return runExecution(runNode(node["key"], dataID), [runNode(node["data"], dataID)], null, dataID, "spaced");
+            return runExecution(handleValue(runNode(node["key"], dataID),dataID), [runNode(node["data"], dataID)], null, dataID, "spaced");
         case "variable":
             // no im not explaining this
             if (flags.includes("check")) {
@@ -639,7 +646,7 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                     v.push({});
                 }
                 v[2]["memoryAddress"] = id;
-                return handleValue(v, dataID);
+                return v;
             } else {
                 if (flags.includes("assignment")) {
                     const id = randomStr(10);
@@ -682,7 +689,7 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                     keyOut.push({});
                 }
                 keyOut[2]["original"] = keyOrg;
-                return handleValue(keyOut,dataID);
+                return keyOut;
             }
             return inst("null","null");
         case "cast":
@@ -809,26 +816,28 @@ function runArguments(definition, args, dataID) {
     return data;
 }
 function runOperation(operation, a, b, dataID) {
-    if (a[1] === "color" && b[1] === "color") {
-        return inst({
-            "r": runOperation(operation, inst(a[0]["r"],"num"), inst(b[0]["r"],"num"))[0],
-            "g": runOperation(operation, inst(a[0]["g"],"num"), inst(b[0]["g"],"num"))[0],
-            "b": runOperation(operation, inst(a[0]["b"],"num"), inst(b[0]["b"],"num"))[0],
-        },"color")
-    }
-    if (a[1] === "color") {
-        return inst({
-            "r": runOperation(operation, inst(a[0]["r"],"num"), b)[0],
-            "g": runOperation(operation, inst(a[0]["g"],"num"), b)[0],
-            "b": runOperation(operation, inst(a[0]["b"],"num"), b)[0],
-        },"color")
-    }
-    if (b[1] === "color") {
-        return inst({
-            "r": runOperation(operation, a, inst(b[0]["r"],"num"))[0],
-            "g": runOperation(operation, a, inst(b[0]["g"],"num"))[0],
-            "b": runOperation(operation, a, inst(b[0]["b"],"num"))[0],
-        },"color")
+    if (["addition","join","subtraction","multiplication","division","modulo","power"].includes(operation)) {
+        if (a[1] === "color" && b[1] === "color") {
+            return inst({
+                "r": runOperation(operation, inst(a[0]["r"],"num"), inst(b[0]["r"],"num"))[0],
+                "g": runOperation(operation, inst(a[0]["g"],"num"), inst(b[0]["g"],"num"))[0],
+                "b": runOperation(operation, inst(a[0]["b"],"num"), inst(b[0]["b"],"num"))[0],
+            },"color")
+        }
+        if (a[1] === "color") {
+            return inst({
+                "r": runOperation(operation, inst(a[0]["r"],"num"), b)[0],
+                "g": runOperation(operation, inst(a[0]["g"],"num"), b)[0],
+                "b": runOperation(operation, inst(a[0]["b"],"num"), b)[0],
+            },"color")
+        }
+        if (b[1] === "color") {
+            return inst({
+                "r": runOperation(operation, a, inst(b[0]["r"],"num"))[0],
+                "g": runOperation(operation, a, inst(b[0]["g"],"num"))[0],
+                "b": runOperation(operation, a, inst(b[0]["b"],"num"))[0],
+            },"color")
+        }
     }
     switch(operation) {
         case "addition":
@@ -904,7 +913,7 @@ function runComparison(type, a, b, dataID) {
         case "string_equal":
             return inst(castType(dataID, a,"str")[0] == castType(dataID, b,"str")[0],"bool");
         case "type_equal":
-            return inst(a[1] === b[1]);
+            return inst(a[1] === b[1],"bool");
         
         case "greater":
             return inst(castType(dataID, a,"num")[0] > castType(dataID, b,"num")[0],"bool");
@@ -981,6 +990,19 @@ const globalTypeAttributes = {
         "values": function(dataID, selfValue) {
             return inst(selfValue[0]["values"],"tuple");
         },
+        "concat": function (dataID, selfValue, ...args) {
+            let keys = selfValue[0]["keys"];
+            let values = selfValue[0]["values"];
+            for (let i = 0; i < args.length; i++) {
+                const arg = castType(dataID,runNode(args[i],dataID),"obj");
+                keys = keys.concat(arg[0]["keys"]);
+                values = values.concat(arg[0]["values"]);
+            }
+            const ref = selfValue[2]["memoryAddress"]
+            selfValue = inst({"keys":keys,"values":values},"obj");
+            memory[ref] = selfValue;
+            return selfValue;
+        }
     },
     "arr": {
         "append": function(dataID, selfValue, ...args) {
@@ -1121,7 +1143,14 @@ const typeInstance = {
         return inst(args.map(v => allocate(v)),"tuple");
     },
     "obj": function(dataID, ...args) {
-        return inst({"keys":[],"values":[]},"obj");
+        let keys = [];
+        let values = [];
+        for (let i = 0; i < args.length; i++) {
+            const arg = castType(dataID,args[i],"obj");
+            keys = keys.concat(arg[0]["keys"]);
+            values = values.concat(allocate(getMemory(arg[0]["values"],dataID), dataID));
+        }
+        return inst({"keys":keys,"values":values},"obj");
     },
     "arr": function(dataID, ...args) {
         return inst(args.map(v => allocate(v, dataID)),"arr");
@@ -1152,6 +1181,10 @@ function getScope(scope, definitions, scopeDataID) {
         "func": inst("func","type"),
         "nullish": inst("null","type"),
         "color": inst("color","type"),
+        "ref": inst("ref","type"),
+        "vec2": inst("vec2","type"),
+        "vec3": inst("vec3","type"),
+        "vec4": inst("vec4","type"),
 
         // functions
         "print": inst(
@@ -1264,6 +1297,30 @@ function getScope(scope, definitions, scopeDataID) {
                         error(dataID, "new must be run as new Type, or new(Type)");
                     }
                     return instanceTypeDefault(castType(dataID,args[0],"type")[0], dataID);
+                }
+            },
+            "func"
+        ),
+        "open": inst(
+            {
+                "type": "builtin",
+                "data": function(dataID, ...args) {
+                    if (args.length != 1) {
+                        error(dataID, "open requires exactly 1 argument");
+                    }
+                    const url = castType(dataID, runNode(args[0], dataID), "str")[0];
+                    if (url.toLowerCase().includes("porn") || url.toLowerCase().includes("sex") || url.toLowerCase().includes("allucat1000.github.io") || url.toLowerCase().includes("milosantos.com")) {
+                        error(dataID, "no");
+                        return;
+                    }
+                    console.log("opened",url);
+                    import('open').then(open => {
+                        open.default(url).catch(err => {
+                            error(dataID, "Failed to open URL:", err);
+                        });
+                    }).catch(err => {
+                        error(dataID, "Failed to load 'open' package:", err);
+                    });
                 }
             },
             "func"
@@ -1459,7 +1516,61 @@ function getScope(scope, definitions, scopeDataID) {
                 },
                 "func"
             ),
+            "floor": inst(
+                {
+                    "type": "builtin",
+                    "data": function(dataID, ...args) {
+                        if (args.length == 1) {
+                            return inst(Math.round(castType(dataID,args[0], "num")[0]),"num");
+                        } else {
+                            return inst(args.map(arg => inst(Math.floor(castType(dataID,arg, "num")[0]),"num")),"tuple");
+                        }
+                    }
+                },
+                "func"
+            ),
+            "ceil": inst(
+                {
+                    "type": "builtin",
+                    "data": function(dataID, ...args) {
+                        if (args.length == 1) {
+                            return inst(Math.round(castType(dataID,args[0], "num")[0]),"num");
+                        } else {
+                            return inst(args.map(arg => inst(Math.ceil(castType(dataID,arg, "num")[0]),"num")),"tuple");
+                        }
+                    }
+                },
+                "func"
+            ),
             "random": inst(
+                {
+                    "type": "builtin",
+                    "data": function(dataID, ...args) {
+                        if (args.length == 0) {
+                            return inst(Math.round(Math.random()),"num");
+                        }
+                        if (args.length == 1) {
+                            const num = castType(dataID,args[0], "num")[0];
+                            if (num % 1 == 0) {
+                                return inst(Math.floor(Math.random() * (num + 1)),"num");
+                            } else {
+                                return inst(Math.random() * (num + 1),"num");
+                            }
+                        }
+                        if (args.length == 2) {
+                            const a = castType(dataID,args[0], "num")[0];
+                            const b = castType(dataID,args[1], "num")[0];
+                            if (a % 1 == 0 && b % 1 == 0) {
+                                return inst(Math.floor(Math.random() * (b - a + 1) + a),"num");
+                            } else {
+                                return inst(Math.random() * (b - a + 1) + a,"num");
+                            }
+                        }
+                    }
+                },
+                "func"
+            ),
+            "randomDecimal": inst(
                 {
                     "type": "builtin",
                     "data": function(dataID, ...args) {
@@ -1467,7 +1578,8 @@ function getScope(scope, definitions, scopeDataID) {
                             return inst(Math.random(),"num");
                         }
                         if (args.length == 1) {
-                            return inst(Math.random() * (castType(dataID,args[0], "num")[0] + 1),"num");
+                            const num = castType(dataID,args[0], "num")[0];
+                            return inst(Math.random() * (num + 1),"num");
                         }
                         if (args.length == 2) {
                             const a = castType(dataID,args[0], "num")[0];
@@ -1480,8 +1592,10 @@ function getScope(scope, definitions, scopeDataID) {
             ),
         },
         // references
-        "round": inst(astNode("Math.round"),"ref"),
         "abs": inst(astNode("Math.abs"),"ref"),
+        "round": inst(astNode("Math.round"),"ref"),
+        "random": inst(astNode("Math.random"),"ref"),
+        "randomDecimal": inst(astNode("Math.randomDecimal"),"ref"),
     };
     const keys = Object.keys(definitions);
     for (let i = 0; i < keys.length; i++) {
@@ -1669,6 +1783,12 @@ function castType(dataID, value, type, formatting = false, tryTo = false, doNotT
                     return inst({"r":value[0],"g":value[0],"b":value[0]},"color");
             }
             return inst({"r":0,"g":0,"b":0},"color");
+        case "vec2":
+            switch (value[1]) {
+                case "vec3":
+                    // finish this :(
+                    return inst({"x":allocate()})
+            }
         default:
             if (tryTo) {
                 return null;
@@ -1739,10 +1859,12 @@ function error(dataID, ...text) {
     process.exit();
 }
 
-
+function quit(...text) {
+    console.error(...text);
+    process.exit();
+}
 
 import fs from 'fs';
-
 
 // is being run directly (nodeJS)
 if (import.meta.url === `file:///${process.argv[1].replace(/\\/g,"/")}`) {
@@ -1755,7 +1877,7 @@ if (import.meta.url === `file:///${process.argv[1].replace(/\\/g,"/")}`) {
                 process.exit(1);
             }
             const ast = astSegment(data);
-            //console.log(JSON.stringify(ast));
+            console.log(JSON.stringify(ast));
             const result = runFunction(ast, "main", {}, true, true);
             if (result) {
                 print(null, "out:", result);
@@ -1774,5 +1896,13 @@ if (import.meta.url === `file:///${process.argv[1].replace(/\\/g,"/")}`) {
             console.warn(Object.keys(memory).length, "memory item(s) still allocated");
             console.warn(memory);
         }
+
+        //const compiled = compileSegment(astSegment(code));
+        //console.log(compiled);
+        //console.log("----------------");
+        //const out = eval(compiled);
+        //if (out) {
+        //    console.log(out);
+        //}
     }
 }
