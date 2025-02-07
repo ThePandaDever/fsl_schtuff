@@ -111,13 +111,10 @@ const Object_isSame = function(e,t){if("object"!=typeof e||"object"!=typeof t)re
 const memory = {};
 
 let code = `
-/*
-crazy = ["hi","wow"];
-silly = crazy[0];
-silly @= "wow";
-print(crazy);
-*/
-new func("print(\"wow\")")()
+foreach (skibidi, 10 to 0) {
+  print(skibidi);
+  // counts down from 10
+}
 `;
 
 export function astSegment(code, root = true) {
@@ -220,6 +217,7 @@ function astNode(code) {
         }
     } catch {}
     
+    // high priority spaced command
     const firstSpaceTokens = splitByFirstSpace(code);
     const commandTokens = splitCommand(code);
     const highPriority = ["return"];
@@ -234,7 +232,7 @@ function astNode(code) {
         }
     }
 
-    const operators = ["+","++","-","*","/","%","^","<>","@"];
+    const operators = ["+","++","-","*","/","%","^","<",">","@"];
     const comparisons = {
         "==": "equal",
         "!=": "not_equal",
@@ -246,6 +244,7 @@ function astNode(code) {
         "<=": "smaller_equal",
     }
 
+    // assignment
     const assignmentTokens = splitAssignment(code, operators);
     const assignments = {
         "=": "default",
@@ -256,11 +255,12 @@ function astNode(code) {
         "/=": "division",
         "%=": "modulo",
         "^=": "power",
-        "@=": "reference"
+        "@=": "reference",
+        "<>=": "swap",
     }
     if (assignmentTokens.length >= 3) {
         const comparisonTokens = splitComparison(code, Object.keys(comparisons));
-        if (!(comparisonTokens.length >= 3)) {
+        if (!(comparisonTokens.length >= 3) || assignmentTokens[1] == "<>=") {
             if (Object.keys(assignments).includes(assignmentTokens[1])) {
                 return {
                     "kind": "assignment",
@@ -273,7 +273,7 @@ function astNode(code) {
     }
 
 
-    // logic symbols
+    // logic
     const logic = {
         "&&": "and",
         "||": "or",
@@ -289,6 +289,7 @@ function astNode(code) {
     }
     const spaceTokens = splitCharedCommand(code, " ");
 
+    // spaced operator
     const spacedOperations = [
         "is",
         "in",
@@ -360,6 +361,7 @@ function astNode(code) {
             }
     }
 
+    // spaced command
     const restricted = ["fn","else"];
     if (firstSpaceTokens.length == 2 && isValidVariableFormat(firstSpaceTokens[0]) && !restricted.includes(firstSpaceTokens[0])) {
         if (!(isBrackets(commandTokens[1]) && commandTokens.length == 2) &&
@@ -373,10 +375,11 @@ function astNode(code) {
         }
     }
 
+    // casting
     if (isBrackets(commandTokens[0])) {
         const commandTokens2 = splitCommand(code);
         const type = astNode(removeBrackets(commandTokens2.shift()))
-        const data = astNode(commandTokens2.join());
+        const data = astNode(commandTokens2.join(""));
         if (data) {
             if (data["kind"] !== "unknown") {
                 return {
@@ -421,6 +424,7 @@ function astNode(code) {
         }
     }
 
+    // anon function
     if (commandTokens.length == 3) {
         if (
             commandTokens[0] === "fn" &&
@@ -467,6 +471,7 @@ function astNode(code) {
         }
     }
 
+    // spaced command
     if (firstSpaceTokens.length == 2) {
         if (lowPriority.includes(firstSpaceTokens[0]) && isValidVariableFormat(firstSpaceTokens[0])) {
             return {
@@ -477,6 +482,7 @@ function astNode(code) {
         }
     }
 
+    // methods
     const methodTokens = splitCharedCommand(code,".");
     if (methodTokens.length > 1) {
         const method = methodTokens.pop();
@@ -490,6 +496,7 @@ function astNode(code) {
         }
     }
 
+    // brackets / tuple
     if (isBrackets(code)) {
         const tokens = splitCommandParams(removeBrackets(code));
         if (tokens.length > 1) {
@@ -501,6 +508,7 @@ function astNode(code) {
         return astNode(removeBrackets(code));
     }
 
+    // array
     if (isSquareBrackets(code)) {
         const tokens = splitCommandParams(removeSquareBrackets(code));
         return {
@@ -509,6 +517,7 @@ function astNode(code) {
         }
     }
 
+    // object
     if (isCurlyBrackets(code)) {
         const tokens = splitCommandParams(removeCurlyBrackets(code));
         let values = [], keys = [], valid = true;
@@ -554,6 +563,18 @@ function astNode(code) {
         "kind": "unknown",
         "data": code,
     };
+}
+function reconstructAstNode(node) {
+    if (Array.isArray(node)) {
+        return castType(null,node,"str",true)[0];
+    }
+    switch (node["kind"]) {
+        case "variable":
+            return node["name"];
+        case "key":
+            return `${reconstructAstNode(node["data"])}[${reconstructAstNode(node["key"])}]`;
+    }
+    return "<unknownAstNode>";
 }
 
 export function runFunction(content, func, scope = {}, root = false, stringify = false) {
@@ -671,6 +692,28 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                 const base = runNode(runNode(node["key"], dataID));
                 value = runOperation(node["type"], base, value);
             }
+            if (node["type"] == "reference") {
+                if (reference && typeof reference !== "object") {
+                    const data = memory[reference][2];
+                    if (memory[reference].length == 3 && data) {
+                        memory[data["ref"]] = value;
+                    } else {
+                        error(dataID, "cannot reference assign to non reference value");
+                    }
+                } else {
+                    error(dataID, "cannot assign to non-allocated value");
+                }
+            }
+            if (node["type"] == "swap") {
+                const referenceV = runNode(node["value"], dataID, ["assignment"]);
+                if (!referenceV) {
+                    error(dataID, "cannot swap non reference value");
+                }
+                const baseV = runNode(node["key"], dataID);
+                memory[reference] = value;
+                memory[referenceV] = baseV;
+                return value;
+            }
             if (reference && typeof reference !== "object") {
                 memory[reference] = value;
             } else {
@@ -689,6 +732,7 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                     keyOut.push({});
                 }
                 keyOut[2]["original"] = keyOrg;
+                keyOut[2]["ref"] = id;
                 return keyOut;
             }
             return inst("null","null");
@@ -886,20 +930,29 @@ function runOperation(operation, a, b, dataID) {
             return inst(a[1] == b[0],"bool");
         case "in":
             return inst(castType(dataID, b, "arr")[0].map(val => getMemory([val])).findIndex(val => isEqual(val, a)) !== -1, "bool");
+        case "to":
+            let range = [];
+            a = runNode(a, dataID), b = runNode(b, dataID);
+            a = castType(dataID, a, "num"), b = castType(dataID, b, "num");
+            const rawA = a, rawB = b;
+            if (a[0] > b[0]) {
+                const temp = b;
+                b = a;
+                a = temp;
+            }
+            for (let i = a[0]; i <= b[0]; i++) {
+                range.push(allocate(inst(i,"num"), dataID));
+            }
+            if (rawA[0] > rawB[0]) {
+                range = range.reverse();
+            }
+            return inst(range, "tuple");
         
         case "not":
             return inst(!castType(dataID, b,"bool")[0],"bool");
         case "boolify":
             return inst(castType(dataID, b,"bool")[0],"bool");
-        case "to":
-            let range = [];
-            a = runNode(a, dataID), b = runNode(b, dataID);
-            a = castType(dataID, a, "num"), b = castType(dataID, b, "num");
-            for (let i = a[0]; i <= b[0]; i++) {
-                range.push(allocate(inst(i,"num"), dataID));
-            }
-            return inst(range, "tuple");
-        
+
         default:
             error(dataID, "unknown operation", operation);
     }
@@ -1161,7 +1214,72 @@ const typeInstance = {
         }
         return inst({"type":"definition","args":[],"data":astSegment(args[0][0])},"func");
     },
+    "vec2": function(dataID, ...args) {
+        if (args.length > 2) {
+            error(dataID, "too many arguments");
+        }
+        if (args.length == 1) {
+            const x = castType(dataID,runNode(args[0],dataID),"num");
+            return inst([allocate(x,dataID),allocate(x,dataID)],"vec2");
+        }
+        if (args.length == 2) {
+            const x = castType(dataID,runNode(args[0],dataID),"num");
+            const y = castType(dataID,runNode(args[1],dataID),"num");
+            return inst([allocate(x,dataID),allocate(y,dataID)],"vec2");
+        }
+        return inst([allocate(inst(0,"num"),dataID),allocate(inst(0,"num"),dataID)],"vec2");
+    },
+    "vec3": function(dataID, ...args) {
+        if (args.length > 3) {
+            error(dataID, "too many arguments");
+        }
+        if (args.length == 1) {
+            const x = castType(dataID,runNode(args[0],dataID),"num");
+            return inst([allocate(x,dataID),allocate(x,dataID),allocate(x,dataID)],"vec3");
+        }
+        if (args.length == 2) {
+            const x = castType(dataID,runNode(args[0],dataID),"num");
+            const y = castType(dataID,runNode(args[1],dataID),"num");
+            return inst([allocate(x,dataID),allocate(y,dataID),allocate(inst(0,"num"),dataID)],"vec3");
+        }
+        if (args.length == 3) {
+            const x = castType(dataID,runNode(args[0],dataID),"num");
+            const y = castType(dataID,runNode(args[1],dataID),"num");
+            const z = castType(dataID,runNode(args[2],dataID),"num");
+            return inst([allocate(x,dataID),allocate(y,dataID),allocate(z,dataID)],"vec3");
+        }
+        return inst([allocate(inst(0,"num"),dataID),allocate(inst(0,"num"),dataID),allocate(inst(0,"num"),dataID)],"vec3");
+    },
+    "vec4": function(dataID, ...args) {
+        if (args.length > 4) {
+            error(dataID, "too many arguments");
+        }
+        if (args.length == 1) {
+            const x = castType(dataID,runNode(args[0],dataID),"num");
+            return inst([allocate(x,dataID),allocate(x,dataID),allocate(x,dataID),allocate(x,dataID)],"vec4");
+        }
+        if (args.length == 2) {
+            const x = castType(dataID,runNode(args[0],dataID),"num");
+            const y = castType(dataID,runNode(args[1],dataID),"num");
+            return inst([allocate(x,dataID),allocate(y,dataID),allocate(inst(0,"num"),dataID),allocate(inst(0,"num"),dataID)],"vec4");
+        }
+        if (args.length == 3) {
+            const x = castType(dataID,runNode(args[0],dataID),"num");
+            const y = castType(dataID,runNode(args[1],dataID),"num");
+            const z = castType(dataID,runNode(args[2],dataID),"num");
+            return inst([allocate(x,dataID),allocate(y,dataID),allocate(z,dataID),allocate(inst(0,"num"),dataID)],"vec4");
+        }
+        if (args.length == 4) {
+            const x = castType(dataID,runNode(args[0],dataID),"num");
+            const y = castType(dataID,runNode(args[1],dataID),"num");
+            const z = castType(dataID,runNode(args[2],dataID),"num");
+            const w = castType(dataID,runNode(args[3],dataID),"num");
+            return inst([allocate(x,dataID),allocate(y,dataID),allocate(z,dataID),allocate(w,dataID)],"vec4");
+        }
+        return inst([allocate(inst(0,"num"),dataID),allocate(inst(0,"num"),dataID)],"vec4");
+    }
 }
+
 
 function getScope(scope, definitions, scopeDataID) {
     let data = {
@@ -1301,7 +1419,7 @@ function getScope(scope, definitions, scopeDataID) {
             },
             "func"
         ),
-        "open": inst(
+        "onlyCoolPeopleCanUseThisFrFrOngNoCap": inst(
             {
                 "type": "builtin",
                 "data": function(dataID, ...args) {
@@ -1724,6 +1842,18 @@ function castType(dataID, value, type, formatting = false, tryTo = false, doNotT
             if (value[1] === "color") {
                 return inst("#"+Math.round(value[0]["r"] * 255).toString(16).padStart(2, '0')+Math.round(value[0]["g"] * 255).toString(16).padStart(2, '0')+Math.round(value[0]["b"] * 255).toString(16).padStart(2, '0'),"str");
             }
+            if (value[1] === "ref") {
+                return inst("<ref:" + reconstructAstNode(value[0]) + ">","str")
+            }
+            if (value[1] === "vec2") {
+                return inst(`<vec2:(${castType(dataID,memory[value[0][0]],"str")[0]},${castType(dataID,memory[value[0][1]],"str")[0]})>`,"str");
+            }
+            if (value[1] === "vec3") {
+                return inst(`<vec3:(${castType(dataID,memory[value[0][0]],"str")[0]},${castType(dataID,memory[value[0][1]],"str")[0]},${castType(dataID,memory[value[0][2]],"str")[0]})>`,"str");
+            }
+            if (value[1] === "vec4") {
+                return inst(`<vec4:(${castType(dataID,memory[value[0][0]],"str")[0]},${castType(dataID,memory[value[0][1]],"str")[0]},${castType(dataID,memory[value[0][2]],"str")[0]},${castType(dataID,memory[value[0][3]],"str")[0]})>`,"str");
+            }
             return inst(value[0].toString(),"str");
         case "num":
             if (value[1] === "str") {
@@ -1747,7 +1877,7 @@ function castType(dataID, value, type, formatting = false, tryTo = false, doNotT
                     return inst(value[0] !== "null","bool");
                 case "obj":
                     return inst(Object.keys(value[0]).length > 0,"bool");
-                case "color":
+                case "color": case "ref": case "func": case "vec2": case "vec3": case "vec4":
                     return inst(true,"bool");
             }
             return inst(false, "bool");
@@ -1785,10 +1915,68 @@ function castType(dataID, value, type, formatting = false, tryTo = false, doNotT
             return inst({"r":0,"g":0,"b":0},"color");
         case "vec2":
             switch (value[1]) {
-                case "vec3":
-                    // finish this :(
-                    return inst({"x":allocate()})
+                case "vec3": case "vec4":
+                    return inst([
+                        allocate(memory[value[0][0]],dataID),
+                        allocate(memory[value[0][1]],dataID),
+                    ],"vec2");
+                default:
+                    const v = castType(dataID,value,"num");
+                    return inst([
+                        allocate(v,dataID),
+                        allocate(v,dataID),
+                    ],"vec2");
             }
+            break;
+        case "vec3":
+            switch (value[1]) {
+                case "vec2":
+                    return inst([
+                        allocate(memory[value[0][0]],dataID),
+                        allocate(memory[value[0][1]],dataID),
+                        allocate(inst(0,"num"),dataID),
+                    ],"vec2");
+                case "vec4":
+                    return inst([
+                        allocate(memory[value[0][0]],dataID),
+                        allocate(memory[value[0][1]],dataID),
+                        allocate(memory[value[0][2]],dataID),
+                    ],"vec3");
+                default:
+                    const v = castType(dataID,value,"num");
+                    return inst([
+                        allocate(v,dataID),
+                        allocate(v,dataID),
+                        allocate(v,dataID),
+                    ],"vec3");
+            }
+            break;
+        case "vec4":
+            switch (value[1]) {
+                case "vec2":
+                    return inst([
+                        allocate(memory[value[0][0]],dataID),
+                        allocate(memory[value[0][1]],dataID),
+                        allocate(inst(0,"num"),dataID),
+                        allocate(inst(0,"num"),dataID),
+                    ],"vec4");
+                case "vec3":
+                    return inst([
+                        allocate(memory[value[0][0]],dataID),
+                        allocate(memory[value[0][1]],dataID),
+                        allocate(memory[value[0][2]],dataID),
+                        allocate(inst(0,"num"),dataID),
+                    ],"vec4");
+                default:
+                    const v = castType(dataID,value,"num");
+                    return inst([
+                        allocate(v,dataID),
+                        allocate(v,dataID),
+                        allocate(v,dataID),
+                        allocate(v,dataID),
+                    ],"vec4");
+            }
+            break;
         default:
             if (tryTo) {
                 return null;
