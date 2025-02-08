@@ -60,7 +60,7 @@ function splitSegment(input) {
     }
 
     // Handle splitting after `}` or `]` at top level
-    if ((char === "}" || char === "]") && braceDepth === 0 && bracketDepth === 0 && parenDepth === 0 && [input[input.length + 1],input[input.length + 2]].includes("=")) {
+    if ((char === "}" || char === "]") && braceDepth === 0 && bracketDepth === 0 && parenDepth === 0 && ![input[input.length + 1],input[input.length + 2]].includes("=")) {
       currentSegment += char; // Keep `}` or `]` in the segment
       segments.push(currentSegment.trim()); // Push the current segment
       currentSegment = ""; // Reset for the next segment
@@ -111,10 +111,9 @@ const Object_isSame = function(e,t){if("object"!=typeof e||"object"!=typeof t)re
 const memory = {};
 
 let code = `
-foreach (skibidi, 10 to 0) {
-  print(skibidi);
-  // counts down from 10
-}
+str test = 5;
+test = fn(){}
+print(test);
 `;
 
 export function astSegment(code, root = true) {
@@ -261,13 +260,39 @@ function astNode(code) {
     if (assignmentTokens.length >= 3) {
         const comparisonTokens = splitComparison(code, Object.keys(comparisons));
         if (!(comparisonTokens.length >= 3) || assignmentTokens[1] == "<>=") {
-            if (Object.keys(assignments).includes(assignmentTokens[1])) {
+            if (assignmentTokens[1] == "=") {
+                const spaceTokens = splitCharedCommand(assignmentTokens.shift()," ");
+                const key = spaceTokens.pop();
                 return {
                     "kind": "assignment",
-                    "key": astNode(assignmentTokens.shift()),
+                    "key": astNode(key),
                     "type": assignments[assignmentTokens.shift()],
-                    "value": astNode(assignmentTokens.join(" "))
+                    "value": astNode(assignmentTokens.join(" ")),
+                    "attributes": astNodes(spaceTokens)
                 }
+            } else {
+                if (Object.keys(assignments).includes(assignmentTokens[1])) {
+                    return {
+                        "kind": "assignment",
+                        "key": astNode(assignmentTokens.shift()),
+                        "type": assignments[assignmentTokens.shift()],
+                        "value": astNode(assignmentTokens.join(" "))
+                    }
+                }
+            }
+        }
+    }
+    if (assignmentTokens.length == 2) {
+        const singleAssignments = {
+            "++": "addition",
+            "--": "subtraction"
+        }
+        if (Object.keys(singleAssignments).includes(assignmentTokens[1])) {
+            return {
+                "kind": "assignment",
+                "key": astNode(assignmentTokens.shift()),
+                "type": singleAssignments[assignmentTokens.shift()],
+                "value": [1,"num"]
             }
         }
     }
@@ -362,7 +387,7 @@ function astNode(code) {
     }
 
     // spaced command
-    const restricted = ["fn","else"];
+    const restricted = ["fn","else","default"];
     if (firstSpaceTokens.length == 2 && isValidVariableFormat(firstSpaceTokens[0]) && !restricted.includes(firstSpaceTokens[0])) {
         if (!(isBrackets(commandTokens[1]) && commandTokens.length == 2) &&
             !(isBrackets(commandTokens[1]) && isCurlyBrackets(commandTokens[2]) && commandTokens.length == 3) &&
@@ -687,6 +712,7 @@ function runNode(node, dataID, flags = [], extraData = {}) {
             return runLogic(node["type"], runNode(node["a"], dataID), runNode(node["b"], dataID), dataID);
         case "assignment":
             let value = runNode(node["value"], dataID);
+            let variableType = "any";
             const reference = runNode(node["key"], dataID, ["assignment"]);
             if (["addition","join","subtraction","multiplication","division","modulo","power"].includes(node["type"])) {
                 const base = runNode(runNode(node["key"], dataID));
@@ -714,7 +740,55 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                 memory[referenceV] = baseV;
                 return value;
             }
+            if (value.length == 2) {
+                value.push({});
+            }
+            //console.log(node);
+            if (node["attributes"]) {
+                const attrs = node["attributes"];
+                let lateattrs = [];
+                for (let i = 0; i < attrs.length; i++) {
+                    const attr = castType(dataID,runNode(attrs[i],dataID),"attr")[0];
+                    switch (attr[0]) {
+                        case "type":
+                            variableType = castType(dataID,attr[1],"type")[0];
+                            break;
+                        case "casted":
+                            lateattrs.push(attr);
+                            break
+                    }
+                }
+                for (let i = 0; i < lateattrs.length; i++) {
+                    const attr = lateattrs[i];
+                    switch (attr[0]) {
+                        case "casted":
+                            const extra = value[2] ?? {};
+                            value = castType(dataID,value,variableType);
+                            value[2] = extra;
+                            value[2]["autoCast"] = true;
+                            break;
+                    }
+                }
+            }
+            value[2]["type"] = variableType;
+            if (!isTypeEqualNull(variableType,value[1])) {
+                error(dataID,"assignment of type", value[1], "when specified type is", variableType)
+            }
             if (reference && typeof reference !== "object") {
+                if (memory[reference]) {
+                    if (memory[reference].length == 3) {
+                        if (memory[reference][2]["autoCast"]) {
+                            const extra = value[2];
+                            value = castType(dataID,value,memory[reference][1]);
+                            value[2] = extra;
+                        }
+                        if (!isTypeEqualNull(memory[reference][2]["type"],value[1])) {
+                            error(dataID, "assignment of type", value[1], "to variable of type", memory[reference][2]["type"]);
+                        } else {
+                            value[2]["type"] = memory[reference][2]["type"];
+                        }
+                    }
+                }
                 memory[reference] = value;
             } else {
                 error(dataID, "cannot assign to non-allocatable value")
@@ -765,7 +839,7 @@ function runExecution(execution,args,content,dataID,type = "standard") {
     if (execution[1] === "num") {
         let amt = 0;
         args.map(v => {
-            amt += castType(v,"num")[0];
+            amt += castType(dataID,v,"num")[0];
         })
         return inst(amt * execution[0],"num");
     }
@@ -1303,6 +1377,15 @@ function getScope(scope, definitions, scopeDataID) {
         "vec2": inst("vec2","type"),
         "vec3": inst("vec3","type"),
         "vec4": inst("vec4","type"),
+        "attr": inst("attr","type"),
+
+        // attributes
+        "casted": inst(
+            [
+                "casted"
+            ],
+            "attr"
+        ),
 
         // functions
         "print": inst(
@@ -1377,10 +1460,11 @@ function getScope(scope, definitions, scopeDataID) {
             {
                 "type": "builtin",
                 "data": function(dataID, ...args) {
+                    args = runNodes(args,dataID);
                     if (args.length == 1) {
                         return inst(castType(dataID,args[0], "arr")[0].length,"num");
                     } else {
-                        return inst(args.map(arg => inst(castType(dataID,arg, "arr")[0].length,"num")),"tuple");
+                        return inst(args.map(arg => allocate(inst(castType(dataID,arg, "arr")[0].length,"num"))),"tuple");
                     }
                 }
             },
@@ -1448,6 +1532,15 @@ function getScope(scope, definitions, scopeDataID) {
             {
                 "type": "builtin_statement",
                 "data": function(dataID, content, ...args) {
+                    if (!content) {
+                        if (args.length == 2) {
+                            return castType(dataID, runNode(args[0],dataID), "bool") ? runNode(args[1],dataID) : inst("null","null");
+                        } else if (args.length == 3) {
+                            return castType(dataID, runNode(args[0],dataID), "bool") ? runNode(args[1],dataID) : runNode(args[2],dataID);
+                        } else {
+                            error(dataID, "unknown inline if syntax");
+                        }
+                    }
                     const val = args.every(arg => castType(dataID, runNode(arg, dataID), "bool")[0]) && args.length > 0;
                     memory[dataID]["stack_value"] = val;
                     if (val) {
@@ -1600,6 +1693,46 @@ function getScope(scope, definitions, scopeDataID) {
                     memory[dataID]["stack_value"] = memory[dataID]["stack_value"] || val;
                     if (val) {
                         const out = runSegmentRaw(content, dataID);
+                        if (out) { return {"kind":"return","data":out}; }
+                    }
+                }
+            },
+            "func"
+        ),
+        "switch": inst(
+            {
+                "type": "builtin_statement",
+                "data": function(dataID, content, ...args) {
+                    args = runNodes(args, dataID);
+                    let runCases = [];
+                    let defaultCases = [];
+                    for (let i = 0; i < content.length; i++) {
+                        const caseElem = content[i];
+                        if (caseElem) {
+                            if (caseElem["kind"] !== "execution") {
+                                error(dataID,"non case element in switch statement");
+                            }
+                            if (caseElem["key"]["name"] !== "case" && caseElem["key"]["name"] !== "default") {
+                                error(dataID,"non case element in switch statement");
+                            }
+                            if (caseElem["key"]["name"] === "default") {
+                                defaultCases.push(caseElem);
+                            } else {
+                                if (caseElem["args"].some(v => args.some(a => isEqual(a,v)))) {
+                                    runCases.push(caseElem);
+                                }
+                            }
+                        }
+                    }
+                    if (runCases.length == 0) {
+                        for (let i = 0; i < defaultCases.length; i++) {
+                            const out = runSegmentRaw(defaultCases[i]["content"], dataID);
+                            if (out) { return {"kind":"return","data":out}; }
+                        }
+                    }
+                    for (let i = 0; i < runCases.length; i++) {
+                        const runCase = runCases[i];
+                        const out = runSegmentRaw(runCase["content"], dataID);
                         if (out) { return {"kind":"return","data":out}; }
                     }
                 }
@@ -1843,7 +1976,7 @@ function castType(dataID, value, type, formatting = false, tryTo = false, doNotT
                 return inst("#"+Math.round(value[0]["r"] * 255).toString(16).padStart(2, '0')+Math.round(value[0]["g"] * 255).toString(16).padStart(2, '0')+Math.round(value[0]["b"] * 255).toString(16).padStart(2, '0'),"str");
             }
             if (value[1] === "ref") {
-                return inst("<ref:" + reconstructAstNode(value[0]) + ">","str")
+                return inst(`<ref:${reconstructAstNode(value[0])}>`,"str");
             }
             if (value[1] === "vec2") {
                 return inst(`<vec2:(${castType(dataID,memory[value[0][0]],"str")[0]},${castType(dataID,memory[value[0][1]],"str")[0]})>`,"str");
@@ -1853,6 +1986,9 @@ function castType(dataID, value, type, formatting = false, tryTo = false, doNotT
             }
             if (value[1] === "vec4") {
                 return inst(`<vec4:(${castType(dataID,memory[value[0][0]],"str")[0]},${castType(dataID,memory[value[0][1]],"str")[0]},${castType(dataID,memory[value[0][2]],"str")[0]},${castType(dataID,memory[value[0][3]],"str")[0]})>`,"str");
+            }
+            if (value[1] === "attr") {
+                return inst(`<attr:${value[0][0]}>`);
             }
             return inst(value[0].toString(),"str");
         case "num":
@@ -1977,6 +2113,13 @@ function castType(dataID, value, type, formatting = false, tryTo = false, doNotT
                     ],"vec4");
             }
             break;
+        case "attr":
+            if (value[1] == "type") {
+                return inst(["type",value],"attr");
+            } else {
+                error(dataID, "cannot convert ", castType(dataID,value,"str")[0] + " to attr");
+            }
+            break;
         default:
             if (tryTo) {
                 return null;
@@ -1989,6 +2132,18 @@ function isTypeEqual(typeA,typeB) {
         return true;
     }
     if (typeA === "any" || typeB === "any") {
+        return true;
+    }
+    return false;
+}
+function isTypeEqualNull(typeA,typeB) {
+    if (typeA === typeB) {
+        return true;
+    }
+    if (typeA === "any" || typeB === "any") {
+        return true;
+    }
+    if (typeB === "null") {
         return true;
     }
     return false;
@@ -2021,6 +2176,8 @@ function instanceTypeDefault(type, dataID) {
     return inst({"type":"builtin","data":typeInstance[type]},"func");
 }
 function isEqual(a,b) {
+    a = [a[0],a[1]];
+    b = [b[0],b[1]];
     if (!isTypeEqual(a[1],b[1])) {
         return false;
     }
@@ -2065,7 +2222,7 @@ if (import.meta.url === `file:///${process.argv[1].replace(/\\/g,"/")}`) {
                 process.exit(1);
             }
             const ast = astSegment(data);
-            console.log(JSON.stringify(ast));
+            //console.log(JSON.stringify(ast));
             const result = runFunction(ast, "main", {}, true, true);
             if (result) {
                 print(null, "out:", result);

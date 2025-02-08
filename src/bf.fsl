@@ -1,0 +1,21 @@
+fn run(str code) {
+    buffer = [];
+    for (999) { buffer.append(0) }
+    pointer = 0;
+    i = 0;
+    loops = [];
+    while (i < len code) {
+        char = code[i];
+        switch (char) {
+            case ("+") {
+                print("wow");
+            }
+            default {
+                print("unknown command" + char);
+            }
+        }
+        i ++;
+    }
+}
+
+run("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++");
