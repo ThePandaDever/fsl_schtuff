@@ -1,21 +1,51 @@
-fn run(str code) {
-    buffer = [];
+fn run(str code, func input) {
+    arr buffer = [];
     for (999) { buffer.append(0) }
-    pointer = 0;
-    i = 0;
-    loops = [];
+    num pointer = 1;
+    num i = 0;
+    arr loops = [];
+    arr splitCode = (arr)code;
+    str out = "";
     while (i < len code) {
-        char = code[i];
+        local str char = splitCode[i];
         switch (char) {
-            case ("+") {
-                print("wow");
+            case (">") {
+                pointer ++;
             }
+            case ("<") {
+                pointer --;
+            }
+            case ("+") {
+                buffer[pointer] ++;
+            }
+            case ("-") {
+                buffer[pointer] --;
+            }
+            case ("[") {
+                loops.append(i);
+            }
+            case ("]") {
+                local l = loops[len loops - 1];
+                if (buffer[pointer] != 0) {
+                    i = l;
+                } else {
+                    loops.pop();
+                }
+                print(loops,buffer[pointer]);
+            }
+            case (".") {
+                out ++= buffer[pointer].getChar();
+            }
+            case ("\n") {}
             default {
-                print("unknown command" + char);
+                warn("unknown command" + char);
             }
         }
         i ++;
     }
+    print(out);
 }
 
-run("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++");
+run(">+++++++++[<++++++++>-]<.>+++++++[<++++>-]<+.+++++++..+++.[-]>++++++++[<++++>-] <.>+++++++++++[<++++++++>-]<-.--------.+++.------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++.", fn() {
+    return "a";
+});

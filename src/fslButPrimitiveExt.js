@@ -1,4 +1,3 @@
-import promptSync from 'prompt-sync';
 
 function splitLogic(t){const e=[];let i="",r=!1,s=!1,n=0,u=0,c=0,o=!1;const l=/(\|\||&&)/;for(let p=0;p<t.length;p++){const m=t[p];if(o)i+=m,o=!1;else if("\\"!==m){if("'"!==m||s||o?'"'!==m||r||o||(s=!s):r=!r,r||s||("["===m?n++:"]"===m?n--:"{"===m?u++:"}"===m?u--:"("===m?c++:")"===m&&c--),!r&&!s&&0===n&&0===u&&0===c){const r=t.slice(p).match(l);if(r&&0===r.index){i.trim()&&(e.push(i.trim()),i=""),e.push(r[0]),p+=r[0].length-1;continue}}i+=m}else o=!0,i+=m}return i.trim()&&e.push(i.trim()),e}
 function splitOperators(t,e){const i=[];let r="",s=!1,n=!1,u=0,c=0,o=0,l=!1;for(let p=0;p<t.length;p++){const m=t[p];l?(l=!1,r+=m):"\\"!==m?"'"!==m||n||u||c||o?'"'!==m||s||u||c||o?s||n?r+=m:("["===m?u++:"]"===m?u--:"{"===m?c++:"}"===m?c--:"("===m?o++:")"===m&&o--,e.includes(m)&&0===u&&0===c&&0===o?"+"!=m||"+"==m&&"+"!=t[p-1]&&"+"!=t[p+1]?(r.trim()&&i.push(r.trim()),i.push(m),r=""):("+"==m&&"+"==t[p+1]&&(i.push(r.trim()),r=""),r+=m,"+"==m&&"+"==t[p-1]&&(i.push(r.trim()),r="")):r+=m):(l||(n=!n),r+=m):(l||(s=!s),r+=m):(l=!0,r+=m)}return r.trim()&&i.push(r.trim()),i}
@@ -78,90 +77,7 @@ function splitSegment(input) {
 
   return segments;
 }
-function splitAssignment(t, l) {
-  let e = [],
-      i = "",
-      r = false,
-      s = false,
-      n = true,
-      u = 0,
-      c = 0,
-      o = 0,
-      p = l.concat("="),
-      m = -1;
-
-  for (let h of t) {
-    m++;
-    const f = "\\" === (m > 0 ? t[m - 1] : null);
-
-    if ('"' !== h || r || f || (s = !s), "'" !== h || s || f || (r = !r), r || s)
-      i += h;
-    else {
-      switch (h) {
-        case "{":
-          o++, i += h;
-          break;
-        case "}":
-          o--, i += h;
-          if (u === 0 && o === 0 && c === 0 && i) {
-            e.push(i.trim());
-            i = "";
-          }
-          break;
-        case "[":
-          c++, i += h;
-          break;
-        case "]":
-          c--, i += h;
-          break;
-        case "(":
-          u++, i += h;
-          break;
-        case ")":
-          u--, i += h;
-          break;
-        case "=":
-          if (0 === u && 0 === o && 0 === c && n) {
-            // Check for compound operator like +=, -=, *=, etc.
-            const nextChar = t[m + 1];
-            if (p.includes(h) && p.includes(nextChar)) {
-              i += h + nextChar;  // Treat compound operator as part of the assignment
-              m++;  // Skip next character as part of the compound operator
-              e.push(i.trim());
-              i = "";
-              n=false;
-              continue;
-            } else {
-              // Handle single "=" assignment operator
-              i += h;
-              e.push(i.trim());
-              i = "";
-              n = false;
-              continue;
-            }
-          } else {
-            i += h;
-          }
-          break;
-        default:
-            if (t[m+1] === "=" && !p.includes(h) && u === 0 && o === 0 && c === 0) {
-                i += h;
-                e.push(i.trim());
-                i = "";
-                continue;
-            }
-          if (u === 0 && o === 0 && c === 0 && ((p.includes(t[m + 1]) || p.includes(t[m + 2])) && h !== ">") && n) {
-            if (i.trim()) e.push(i.trim());
-            i = "";
-          }
-          i += h;
-      }
-    }
-  }
-
-  if (i) e.push(i.trim());
-  return e;
-}
+function splitAssignment(t,l){let e=[],i="",r=!1,s=!1,n=!0,u=0,c=0,o=0,p=l.concat("="),m=-1;for(let h of t){m++;const f="\\"===(m>0?t[m-1]:null);if('"'!==h||r||f||(s=!s),"'"!==h||s||f||(r=!r),r||s)i+=h;else switch(h){case"{":o++,i+=h;break;case"}":o--,i+=h,0===u&&0===o&&0===c&&i&&(e.push(i.trim()),i="");break;case"[":c++,i+=h;break;case"]":c--,i+=h;break;case"(":u++,i+=h;break;case")":u--,i+=h;break;case"=":if(0===u&&0===o&&0===c&&n&&l.includes(t[m-1])&&n&&!l.includes(h)){i+=h,e.push(i.trim()),i="",n=!1;continue}0!==u||0!==o||0!==c||!n||p.includes(t[m+1])||p.includes(t[m-1])?i+=h:(l.includes(t[m-1])?(i+=h,i&&e.push(i.trim()),i=""):(i.trim()&&e.push(i.trim()),e.push(h),i=""),n=!1);break;default:0===u&&0===o&&0===c&&l.includes(t[m+1])&&p.includes(t[m+2])&&n&&(i.trim()&&e.push(i.trim()),i=""),i+=h}}return i&&e.push(i.trim()),e}
 function splitByFirstSpace(t){const e=(t=t.trim()).indexOf(" ");if(-1===e)return[t];return[t.slice(0,e),t.slice(e+1)]}
 function splitCharedCommand(t,e){const i=[];let r="",s=!1,n=!1,u=0,c=0,o=0,l=!1;for(let p=0;p<t.length;p++){const m=t[p];if(l)r+=m,l=!1;else if("\\"!==m)if('"'!==m||n||0!==u||0!==c||0!==o)if("'"!==m||s||0!==u||0!==c||0!==o){if(!s&&!n){if("("===m){u++,r+=m;continue}if("{"===m){c++,r+=m;continue}if("["===m){o++,r+=m;continue}if(")"===m&&u>0){u--,r+=m;continue}if("}"===m&&c>0){c--,r+=m;continue}if("]"===m&&o>0){o--,r+=m;continue}}m!==e||s||n||0!==u||0!==c||0!==o?r+=m:r.length>0&&(i.push(r.trim()),r="")}else n=!n,r+=m;else s=!s,r+=m;else l=!0,r+=m}return r.length>0&&i.push(r.trim()),i}
 function splitCommand(t){const e=[];let i="",r=!1,s="",n=0,u=0,c=0,o=!1;for(let l=0;l<t.length;l++){const p=t[l];o?(i+=p,o=!1):"\\"!==p?r?(i+=p,p===s&&(r=!1)):'"'===p||"'"===p?(r=!0,s=p,i+=p):"("===p?(0===n&&0===u&&0===c?(i.trim()&&e.push(i.trim()),i="("):i+="(",n++):")"===p?(n--,0===n&&0===u&&0===c?(i+=")",i.trim()&&e.push(i.trim()),i=""):i+=")"):"{"===p?(0===n&&0===u&&0===c&&(i.trim()&&e.push(i.trim()),i=""),u++,i+=p):"}"===p?(u--,i+=p,0===n&&0===u&&0===c&&(i.trim()&&e.push(i.trim()),i="")):"["===p?(c++,i+=p):"]"===p?(c--,i+=p,0===n&&0===u&&0===c&&(""!==i&&e.push(i.trim()),i="")):i+=p:(o=!0,i+=p)}return""!==i&&e.push(i.trim()),e}
@@ -207,11 +123,18 @@ const local_system = {
 }
 
 let code = `
-a=0;for(b=1,1000){a<>=b;b+=a}log(a)
+a = 0;
+b = 1;
+
+for (1000) {
+    a <>= b;
+    b += a;
+}
+return a;
 `;
 
 let astSegmentIds = [];
-export function astSegment(code, root = true) {
+function astSegment(code, root = true) {
     code = removeComments(code);
     const elements = splitSegment(code);
     //console.log(elements);
@@ -726,7 +649,7 @@ function reconstructAstNode(node) {
     return "<unknownAstNode>";
 }
 
-export function runFunction(content, func, scope = {}, root = false, stringify = false, getScopeData = false) {
+function runFunction(content, func, scope = {}, root = false, stringify = false, getScopeData = false) {
     if (root) {
         const out = runFunctionRaw(content, content, scope, stringify, getScopeData);
         if (out) {
@@ -2584,57 +2507,40 @@ function warn(dataID, ...text) {
 }
 function error(dataID, ...text) {
     console.error("[error]",...text);
-    process.exit();
 }
 
 function quit(...text) {
     console.error(...text);
-    process.exit();
 }
+(function(Scratch) {
+    "use strict";
+    const { BlockType, ArgumentType } = Scratch;
 
-import fs from 'fs';
+    const chars = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+    const textBlockAmt = chars.length;
 
-// is being run directly (nodeJS)
-if (import.meta.url === `file:///${process.argv[1].replace(/\\/g,"/")}`) {
-    // is being run on a file (nodeJS)
-    if (!!process.argv[2]) {
-        const filePath = process.argv[2];
-        fs.readFile(filePath, 'utf8', (err, data) => {
-            if (err) {
-                console.error('Error reading file:', err);
-                process.exit(1);
-            }
-            const ast = astSegment(data);
-            //console.log(JSON.stringify(ast));
-            const result = runFunction(ast, "main", {}, true, true);
-            if (result) {
-                print(null, "out:", result);
-            }
-            //if (Object.keys(memory).length) {
-            //    console.warn(Object.keys(memory).length, "memory item(s) still allocated");
-            //    console.warn(memory);
-            //}
-        });
-    } else {
-        //console.log(JSON.stringify(astSegment(code)));
-        const ast = astSegment(code);
-        console.time();
-        const out = runFunction(ast,"main",{},true,true);
-        console.timeEnd();
-        if (out)
-            print(null,"out:",out);
-        //console.log(memory);
-        //if (Object.keys(memory).length) {
-        //    console.warn(Object.keys(memory).length, "memory item(s) still allocated");
-        //    console.warn(memory);
-        //}
-
-        //const compiled = compileSegment(astSegment(code));
-        //console.log(compiled);
-        //console.log("----------------");
-        //const out = eval(compiled);
-        //if (out) {
-        //    console.log(out);
-        //}
-    }
-}
+    class fslEw {
+		getInfo() {
+			return {
+				id: "flfFslEw",
+				name: "cringe fsl",
+                color1: "#eb346b",
+				blocks: [
+                    {
+                        opcode: "runFsl",
+                        blockType: BlockType.COMMAND,
+                        text: "run fsl",
+                    }
+                ]
+			}
+		}
+        runFsl() {
+            const ast = astSegment(code);
+            console.time();
+            const out = runFunction(ast,"main",{},true,true);
+            console.timeEnd();
+            console.log(out);
+        }
+	}
+	Scratch.extensions.register(new fslEw());
+})(Scratch);
