@@ -150,7 +150,7 @@ function splitAssignment(t, l) {
                 i = "";
                 continue;
             }
-          if (u === 0 && o === 0 && c === 0 && ((p.includes(t[m + 1]) || p.includes(t[m + 2])) && h !== ">") && n) {
+          if (u === 0 && o === 0 && c === 0 && ((p.includes(t[m + 1])/* || p.includes(t[m + 2])*/) && h !== ">") && n) {
             if (i.trim()) e.push(i.trim());
             i = "";
           }
@@ -182,7 +182,7 @@ function isValidVariableFormat(t){return/^[A-Za-z0-9_]+$/.test(t)}
 function isValidFunctionFormat(t){return/^[A-Za-z0-9_.@#]+$/.test(t)}
 function isValidDefinitionFormat(t){return/^[A-Za-z0-9_.@#]+$/.test(t)}
 function isValidAssignFormat(t){return/^[A-Za-z0-9_.@#\[\]\" ]+$/.test(t)}
-function randomStr(r=10){let e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",n="";for(let t=0;t<r;t++)n+=e.charAt(Math.floor(Math.random()*e.length));return n}
+function randomStr(r=2){let e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",n="";for(let t=0;t<r;t++)n+=e.charAt(Math.floor(Math.random()*e.length));return n}
 function escapeRegExp(r){return r.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}
 function mergeNegativeNumbers(e,t){let r=[];for(let n=0;n<e.length;n++)t.includes(e[n-1])&&"-"===e[n]&&!isNaN(e[n+1])?(r.push(e[n]+e[n+1]),n++):r.push(e[n]);return r}
 function hexToFloats(t){3===(t=t.replace(/^#/,"")).length&&(t=t.split("").map(t=>t+t).join(""));let n=parseInt(t.substring(0,2),16),s=parseInt(t.substring(2,4),16),r=parseInt(t.substring(4,6),16);return{r:n/255,g:s/255,b:r/255}}
@@ -207,7 +207,7 @@ const local_system = {
 }
 
 let code = `
-a=0;for(b=1,1000){a<>=b;b+=a}log(a)
+print(silly(), "Hello World", "silly");
 `;
 
 let astSegmentIds = [];
@@ -771,7 +771,7 @@ function runFunctionRaw(content, segment, scope = {}, stringify = false, getScop
     // cleanup
     if (!getScopeData) {
         const ids = memory[dataID]["memory_addresses"];
-        deAllocate(scopeID, segmentScopeID, astID, memory[dataID]["trace"], dataID, ...ids);
+        //deAllocate(scopeID, segmentScopeID, astID, memory[dataID]["trace"], dataID, ...ids);
     } else {
         return dataID;
     }
@@ -779,7 +779,8 @@ function runFunctionRaw(content, segment, scope = {}, stringify = false, getScop
     return out;
 }
 function runSegmentRaw(content, dataID) {
-    traceAdd(dataID,"content");
+    if (!Array.isArray(content)) {return}
+    //traceAdd(dataID,"content");
     const id = randomStr();
     memory[dataID]["segmentLocalMemoryIDS"] ??= {}
     memory[dataID]["segmentLocalScopeNames"] ??= {}
@@ -798,11 +799,11 @@ function runSegmentRaw(content, dataID) {
     }
     memory[dataID]["segments"].pop();
     memory[dataID]["segmentLocalScopeNames"][id].map(n => {
-        delete memory[memory[dataID]["scope"]][n]
+        delete memory[memory[dataID]["scope"]][n];
     });
     deAllocate(memory[dataID]["segmentLocalMemoryIDS"][id]);
     delete memory[dataID]["segmentLocalScopeNames"][id];
-    traceOut(dataID);
+    //traceOut(dataID);
 }
 function runNodes(args, dataID) {
     return args.map(arg => runNode(arg, dataID));
@@ -889,7 +890,7 @@ function runNode(node, dataID, flags = [], extraData = {}) {
                 if (!referenceV) {
                     error(dataID, "cannot swap non reference value");
                 }
-                const baseV = runNode(node["key"], dataID);
+                const baseV = runNode(node["key"], dataID, ["assignment"]);
                 if (reference && typeof reference !== "object") {
                     if (memory[reference] && memory[referenceV]) {
                         if (memory[reference].length >= 3 && memory[referenceV].length >= 3 && !isTypeEqual(memory[reference][2]["type"],memory[referenceV][2]["type"])) {
@@ -1130,7 +1131,7 @@ function runExecution(execution,args,content,dataID,type = "standard") {
                 })
             })
             const out = runSegmentRaw(execution[0]["data"]["data"], funcDataID);
-            deAllocate(funcAstID, funcScopeID, memory[funcDataID]["trace"], funcDataID, ...memory[funcDataID]["memory_addresses"]);
+            //deAllocate(funcAstID, funcScopeID, memory[funcDataID]["trace"], funcDataID, ...memory[funcDataID]["memory_addresses"]);
             return out || inst("null","null");
         default:
             error(dataID,"unknown function type",execution[0]["type"]);
@@ -1916,13 +1917,17 @@ function getScope(scope, definitions, scopeDataID) {
                     let current = args.shift();
                     if (!Array.isArray(current)) {
                         if (current["kind"] == "variable") {
-                            runNode({
-                                "kind": "assignment",
-                                "type": "default",
-                                "key": current,
-                                "value": inst(0, "num")
-                            },dataID)
-                            variable = current;
+                            if (args.length != 0) {
+                                runNode({
+                                    "kind": "assignment",
+                                    "type": "default",
+                                    "key": current,
+                                    "value": inst(0, "num")
+                                },dataID)
+                                variable = current;
+                            } else {
+                                value = current;
+                            }
                         } else if (current["kind"] == "assignment") {
                             runNode(current, dataID);
                             variable = current["key"];
@@ -1936,7 +1941,6 @@ function getScope(scope, definitions, scopeDataID) {
                     } else {
                         value = current;
                     }
-                    
                     
                     if (args.length > 0) {
                         const stepRaw = args.shift();
@@ -2584,7 +2588,7 @@ function warn(dataID, ...text) {
 }
 function error(dataID, ...text) {
     console.error("[error]",...text);
-    process.exit();
+    //process.exit();
 }
 
 function quit(...text) {
@@ -2623,7 +2627,7 @@ if (import.meta.url === `file:///${process.argv[1].replace(/\\/g,"/")}`) {
         console.timeEnd();
         if (out)
             print(null,"out:",out);
-        //console.log(memory);
+        console.log(memory);
         //if (Object.keys(memory).length) {
         //    console.warn(Object.keys(memory).length, "memory item(s) still allocated");
         //    console.warn(memory);

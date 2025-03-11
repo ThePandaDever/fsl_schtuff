@@ -1,6 +1,6 @@
 fn run(str code, func input) {
     arr buffer = [];
-    for (999) { buffer.append(0) }
+    for (100000) { buffer.append(0) }
     num pointer = 1;
     num i = 0;
     arr loops = [];
@@ -26,17 +26,16 @@ fn run(str code, func input) {
             }
             case ("]") {
                 local l = loops[len loops - 1];
-                if (buffer[pointer] != 0) {
+                if (buffer[pointer] > 0) {
                     i = l;
                 } else {
                     loops.pop();
                 }
-                print(loops,buffer[pointer]);
             }
             case (".") {
                 out ++= buffer[pointer].getChar();
             }
-            case ("\n") {}
+            case ("\n");
             default {
                 warn("unknown command" + char);
             }
@@ -46,6 +45,6 @@ fn run(str code, func input) {
     print(out);
 }
 
-run(">+++++++++[<++++++++>-]<.>+++++++[<++++>-]<+.+++++++..+++.[-]>++++++++[<++++>-] <.>+++++++++++[<++++++++>-]<-.--------.+++.------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++.", fn() {
+run("++++++++[>+>++++<<-]>++>>+<[-[>>+<<-]+>>]>+[-<<<[->[+[-]+>++>>>-<<]<[<]>>++++++[<<+++++>>-]+<<++.[-]<<]>.>+[>>]>+]", fn() {
     return "a";
 });

@@ -1,0 +1,41 @@
+fn lerp(arr a, arr b, num t) {
+    return [b[0] - a[0] * t + a[0],b[1] - a[1] * t + a[1]];
+}
+
+fn conv(arr p) {
+    return "" ++ p[0] + p[1];
+}
+
+str txt = "";
+
+arr a = [-10,0];
+arr b = [-10,0];
+arr c = [-10,10];
+arr d = [0,10];
+
+//txt += "dot" + conv(a);
+
+num points = 100;
+
+for (t = 0, t < 1, t += 1/points) {
+    p1 = lerp(a,b,t);
+    p2 = lerp(b,c,t);
+    p3 = lerp(c,d,t);
+    p4 = lerp(p1,p2,t);
+    p5 = lerp(p2,p3,t);
+    p = lerp(p4,p5,t);
+    co = "cont";
+    if (round(t * points) == 0) {
+        co = "line";
+    }
+    if (round(t * points) == 1) {
+        co = "";
+    }
+    if (co) {
+        txt += co + conv(p);
+    } else {
+        txt += conv(p);
+    }
+}
+
+print(txt.trim());

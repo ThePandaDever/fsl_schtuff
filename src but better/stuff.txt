@@ -1,0 +1,67 @@
+operations:
+    +
+    ++
+    -
+    *
+    /
+    %
+    ^
+comparisons:
+    ==
+    !=
+    ~=
+    :=
+    >
+    <
+    >=
+    <=
+logic:
+    &&
+    ||
+assignments:
+    =
+    +=
+    ++=
+    -=
+    *=
+    /=
+    %=
+    ^=
+    ++
+    --
+statements:
+    if
+    else
+    while
+    until
+    for
+    foreach
+    try
+functions
+spaced commands:
+    typeof
+    len
+    new
+    return
+tuples + arrays + objects
+keys:
+    str
+    num (str but converted)
+    tuple
+    arr
+    obj
+casting
+inline functions
+methods
+switch
+typed variables + attributes:
+    casted
+    const
+    local
+    global
+modules:
+    import
+    public
+    private
+pointers
+oop
