@@ -207,7 +207,7 @@ const local_system = {
 }
 
 let code = `
-print(silly(), "Hello World", "silly");
+while (while(true) {return 1})
 `;
 
 let astSegmentIds = [];
@@ -2622,12 +2622,13 @@ if (import.meta.url === `file:///${process.argv[1].replace(/\\/g,"/")}`) {
     } else {
         //console.log(JSON.stringify(astSegment(code)));
         const ast = astSegment(code);
+        console.log(JSON.stringify(ast));
         console.time();
         const out = runFunction(ast,"main",{},true,true);
         console.timeEnd();
         if (out)
             print(null,"out:",out);
-        console.log(memory);
+        //console.log(memory);
         //if (Object.keys(memory).length) {
         //    console.warn(Object.keys(memory).length, "memory item(s) still allocated");
         //    console.warn(memory);

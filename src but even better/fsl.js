@@ -1,262 +1,433 @@
-function splitCode(code) {
-    let tokens = [""];
-    const splitChars = [
-        "\"",
-        "'",
-        "`",
-        "(",")",
-        "[","]",
-        "{","}",
-        "<",">",
-        ";",
-        ":",
-        ",",
-        ".",
-        "+","-","/","*",
-        "|","&",
-        " ",
-        "\n",
-    ]
-    for (let i = 0; i < code.length; i++) {
-        const char = code[i];
-        if (splitChars.includes(char)) {
-            if (tokens[tokens.length - 1] == "") {
-                tokens[tokens.length - 1] += char;
-            } else {
-                tokens.push(char);
-            }
-            tokens.push("");
-        } else {
-            tokens[tokens.length - 1] += char;
+
+const memory = {};
+
+function split(text, type) {
+    text = text.trim();
+    const tokens = [];
+    let current = "";
+
+    let bracketDepth = 0,
+        curlyDepth = 0,
+        squareDepth = 0,
+        arrowDepth = 0;
+    let inSingle = false,
+        inDouble = false,
+        inTick = false;
+    
+    const brackets = {"bracket":["(",")"],"curly":["{","}"],"square":["[","]"],"arrow":["<",">"]}[type] ?? ["",""]; // get the bracket pairs
+    const open = brackets[0],
+        close = brackets[1];
+    const splitChar = type.length === 1 ? type : "";
+    
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+
+        if (char == "\\") { current += char + text[i + 1]; i ++; continue; }
+
+        if (char == "'" && !(inDouble || inTick))
+            inSingle = !inSingle;
+        if (char == "\"" && !(inSingle || inTick))
+            inDouble = !inDouble;
+        if (char == "`" && !(inSingle || inDouble))
+            inTick = !inTick;
+
+        const inQuotes = inSingle || inDouble || inTick;
+
+        if (inQuotes) {
+            current += char;
+            continue;
         }
+
+        if (char === "(")
+            bracketDepth ++;
+        if (char === ")")
+            bracketDepth --;
+        if (char === "{")
+            curlyDepth ++;
+        if (char === "}")
+            curlyDepth --;
+        if (char === "[")
+            squareDepth ++;
+        if (char === "]")
+            squareDepth --;
+        if (char === "<")
+            arrowDepth ++;
+        if (char === ">")
+            arrowDepth --;
+        
+        if (char === open && 
+            bracketDepth == (type == "bracket" ? 1 : 0) &&
+            curlyDepth == (type == "curly" ? 1 : 0) &&
+            squareDepth == (type == "square" ? 1 : 0) &&
+            arrowDepth == (type == "arrow" ? 1 : 0)
+        ) {
+            tokens.push(current.trim());
+            if (text[i+1] == close && !tokens[tokens.length - 1])
+                tokens.push("");
+            else
+                current = ")";
+            current = open;
+            continue;
+        }
+        if (char === close && bracketDepth == 0 && curlyDepth == 0 && squareDepth == 0 && arrowDepth == 0) {
+            current += close;
+            continue;
+        }
+
+        if (char === splitChar && bracketDepth == 0 && curlyDepth == 0 && squareDepth == 0 && arrowDepth == 0) {
+            tokens.push(current);
+            current = "";
+            continue;
+        }
+
+        current += char;
     }
+
+    if (current) {
+        tokens.push(current.trim());
+    }
+
     return tokens;
 }
 
-class Node {
-    constructor(data = null) {
-        if (typeof data === "string") {
-            this.parse(data);
+function has(text, type) {
+    text = text.trim();
+    const tokens = [];
+    let current = "";
+
+    let bracketDepth = 0,
+        curlyDepth = 0,
+        squareDepth = 0,
+        arrowDepth = 0;
+    let inSingle = false,
+        inDouble = false,
+        inTick = false;
+    
+    const brackets = {"bracket":["(",")"],"curly":["{","}"],"square":["[","]"],"arrow":["<",">"]}[type] ?? ["",""]; // get the bracket pairs
+    const open = brackets[0],
+        close = brackets[1];
+    const splitChar = type.length === 1 ? type : "";
+    
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+
+        if (char == "\\") { current += char + text[i + 1]; i ++; continue; }
+
+        if (char == "'" && !(inDouble || inTick))
+            inSingle = !inSingle;
+        if (char == "\"" && !(inSingle || inTick))
+            inDouble = !inDouble;
+        if (char == "`" && !(inSingle || inDouble))
+            inTick = !inTick;
+
+        const inQuotes = inSingle || inDouble || inTick;
+
+        if (inQuotes) {
+            current += char;
+            continue;
         }
+
+        if (char === "(")
+            bracketDepth ++;
+        if (char === ")")
+            bracketDepth --;
+        if (char === "{")
+            curlyDepth ++;
+        if (char === "}")
+            curlyDepth --;
+        if (char === "[")
+            squareDepth ++;
+        if (char === "]")
+            squareDepth --;
+        if (char === "<")
+            arrowDepth ++;
+        if (char === ">")
+            arrowDepth --;
+        
+        if (char === open && 
+            bracketDepth == (type == "bracket" ? 1 : 0) &&
+            curlyDepth == (type == "curly" ? 1 : 0) &&
+            squareDepth == (type == "square" ? 1 : 0) &&
+            arrowDepth == (type == "arrow" ? 1 : 0)
+        ) {
+            return true;
+        }
+        if (char === close && bracketDepth == 0 && curlyDepth == 0 && squareDepth == 0 && arrowDepth == 0) {
+            return true;
+        }
+
+        if (char === splitChar && bracketDepth == 0 && curlyDepth == 0 && squareDepth == 0 && arrowDepth == 0) {
+            return true;
+        }
+
+        current += char;
     }
-    parse(text) {
-        const tokens = splitCode(text);
 
-        const isValidVariable = (text) => /^[A-Za-z0-9_]+$/.test(text);
+    return false;;
+}
 
-        let parenDepth = 0,
-            squareDepth = 0,
-            curlyDepth = 0,
-            angleDepth = 0;
+function is(text, type) {
+    const first = text[0],
+        last = text[text.length - 1];
+    
+    const pairs = {
+        "bracket": ["(",")"],
+        "curly":["{","}"],
+        "square":["[","]"],
+        "arrow":["<",">"],
+        "single-q":["'","'"],
+        "double-q":['"','"'],
+        "back-q":["`","`"]
+    }
+
+    const pair = pairs[type];
+    return pair ? (first === pair[0] && last === pair[1]) : false;
+}
+
+function unExcape(text) {
+    let current = "";
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
         
-        let inSingle = false,
-            inDouble = false,
-            inQuote = false;
+        if (char == "\\") { current += text[i + 1]; i ++; continue; }
+
+        current += char;
+    }
+    return current;
+}
+
+let randomI = 0;
+function generateRandom() {
+    randomI ++;
+    /*
+    let str = "";
+    for (let i = 0; i < 10; i++) {
+        str += String(Math.sin(i * 14.45167 + (randomI * 24.22415))).slice(3,5);
+    }
+    return str;
+    */
+    return randomI.toString();
+}
+
+function allocate(value) {
+    const id = generateRandom();
+    memory[id] = value;
+    return id;
+}
+function deallocate(id) {
+    delete memory[id];
+}
+
+class Node {
+    constructor(code) {
+        this.code = code.trim();
+        this.parse()
+    }
+    parse() {
+        if (has(this.code, ";")) {
+            const elements = split(this.code, ";");
+            this.type = "segment";
+            this.elements = elements.filter(e => e.trim() != "").map(e => new Node(e));
+            return;
+        }
         
-        let type = null;
-        for (let i = 0; i < tokens.length; i++) {
-            const token = tokens[i];
-            
-            if (token === "'" && !(inDouble || inQuote))
-                inSingle = !inSingle;
-            if (token === "\"" && !(inSingle || inQuote))
-                inDouble = !inDouble;
-            if (token === "`" && !(inSingle || inDouble))
-                inQuote = !inQuote;
+        const bracketTokens = split(this.code, "bracket");
+        if (is(bracketTokens[bracketTokens.length - 1],"bracket")) {
+            const bracket = bracketTokens.pop();
+            this.type = "execution";
+            this.args = new List(bracket.slice(1,-1));
+            this.key = new Node(bracketTokens.join(""));
+            return;
+        }
 
-            const inQuotes = inSingle || inDouble || inQuote;
-            const inBrackets = parenDepth != 0 || squareDepth != 0 || curlyDepth != 0 || angleDepth != 0;
+        if (is(this.code,"single-q") || is(this.code,"double-q") || is(this.code,"back-q")) {
+            this.type = "string";
+            this.data = unExcape(this.code.slice(1,-1));
+            return;
+        }
 
-            if (inQuotes) continue;
-            if (token === "'" || token === "\"" || token === "`") continue;
+        if (/^[^'"`]*[a-zA-Z_1-9][^'"`]*$/.test(this.code)) {
+            this.type = "variable";
+            this.key = this.code;
+            return;
+        }
 
-            if (token === "(") parenDepth ++
-            if (token === "[") squareDepth ++
-            if (token === "{") curlyDepth ++
-            if (token === "<") angleDepth ++
+        throw Error("unexpected tokens: '" + this.code.trim().split("\n").map(l => l.trim()).join("\\n") + "'");
+    }
 
-            if (token === ")") parenDepth --
-            if (token === "]") squareDepth --
-            if (token === "}") curlyDepth --
-            if (token === ">") angleDepth --
-
-            if (isValidVariable(token) && type == null && !inBrackets) {
-                type = "var";
-                continue;
+    run(scope) {
+        scope ??= new Scope();
+        //console.log(this);
+        switch (this.type) {
+            case "segment": {
+                for (let i = 0; i < this.elements.length; i++) {
+                    const element = this.elements[i];
+                    scope.newLayer();
+                    console.log(scope);
+                    const out = element.run(scope);
+                    scope.exitLayer();
+                    if (out instanceof ReturnValue) {
+                        return out;
+                    }
+                }
+                return new Undefined();
             }
-
-            if (token === "(" && parenDepth == 1 && squareDepth == 0 && curlyDepth == 0 && angleDepth == 0 && i > 0) {
-                type = "execution";
-                continue;
-            }
-
-            if (token === ";") {
-                type = "segment";
+            case "execution": {
+                const key = this.key.run(scope);
+                const args = this.args.run(scope);
+                key.execute(args);
                 break;
             }
-
-            if (inBrackets) continue;
-
-            if (token === ",") {
-                type = "list";
-                continue;
-            }
-
-            if (token === "\n" || token === "") continue;
-
-            throw Error("unexpected token '" + token + "'");
-        }
-        if (parenDepth != 0) throw Error("unclosed or overclosed parenthesis");
-        if (squareDepth != 0) throw Error("unclosed or overclosed square brackets");
-        if (curlyDepth != 0) throw Error("unclosed or overclosed curly brackets");
-        if (angleDepth != 0) throw Error("unclosed or overclosed angle brackets");
-
-        this.kind = type;
-
-        if (type === "segment") {
-            const elements = [];
+            case "variable":
+                return scope.get(this.key) ?? new Undefined();
             
-            let tokenStack = [];
-            for (let i = 0; i < tokens.length; i++) {
-                const token = tokens[i];
+            case "string":
+                return new StringValue(this.data);
 
-                tokenStack.push(token);
-                
-                if (token === "'" && !(inDouble || inQuote))
-                    inSingle = !inSingle;
-                if (token === "\"" && !(inSingle || inQuote))
-                    inDouble = !inDouble;
-                if (token === "`" && !(inSingle || inDouble))
-                    inQuote = !inQuote;
-
-                const inQuotes = inSingle || inDouble || inQuote;
-                const inBrackets = parenDepth != 0 || squareDepth != 0 || curlyDepth != 0 || angleDepth != 0;
-
-                if (inQuotes) continue;
-                if (token === "'" || token === "\"" || token === "`") continue;
-
-                if (token === "(") parenDepth ++
-                if (token === "[") squareDepth ++
-                if (token === "{") curlyDepth ++
-                if (token === "<") angleDepth ++
-
-                if (token === ")") parenDepth --
-                if (token === "]") squareDepth --
-                if (token === "}") curlyDepth --
-                if (token === ">") angleDepth --
-
-                if (inBrackets) continue;
-
-                if (
-                    token === ";" || (
-                    (token === ")" && parenDepth == 0) ||
-                    (token === "]" && squareDepth == 0) ||
-                    (token === "}" && curlyDepth == 0))
-                ) {
-                    elements.push(new Node(tokenStack.slice(0,-1).join("")));
-                    tokenStack = [];
-                    continue;
-                }
-            }
-            this.elements = elements;
-        } else if (type === "list") {
-            const elements = [];
-            
-            let tokenStack = [];
-            for (let i = 0; i < tokens.length; i++) {
-                const token = tokens[i];
-
-                tokenStack.push(token);
-                
-                if (token === "'" && !(inDouble || inQuote))
-                    inSingle = !inSingle;
-                if (token === "\"" && !(inSingle || inQuote))
-                    inDouble = !inDouble;
-                if (token === "`" && !(inSingle || inDouble))
-                    inQuote = !inQuote;
-
-                const inQuotes = inSingle || inDouble || inQuote;
-                const inBrackets = parenDepth != 0 || squareDepth != 0 || curlyDepth != 0 || angleDepth != 0;
-
-                if (inQuotes) continue;
-                if (token === "'" || token === "\"" || token === "`") continue;
-
-                if (token === "(") parenDepth ++
-                if (token === "[") squareDepth ++
-                if (token === "{") curlyDepth ++
-                if (token === "<") angleDepth ++
-
-                if (token === ")") parenDepth --
-                if (token === "]") squareDepth --
-                if (token === "}") curlyDepth --
-                if (token === ">") angleDepth --
-
-                if (inBrackets) continue;
-
-                if (token === ",") {
-                    elements.push(new Node(tokenStack.slice(0,-1).join("")));
-                    tokenStack = [];
-                    continue;
-                }
-            }
-            this.elements = elements;
-        } else if (type == "execution") {
-            let tokenStack = [];
-            for (let i = 0; i < tokens.length; i++) {
-                const token = tokens[i];
-
-                tokenStack.push(token);
-                
-                if (token === "'" && !(inDouble || inQuote))
-                    inSingle = !inSingle;
-                if (token === "\"" && !(inSingle || inQuote))
-                    inDouble = !inDouble;
-                if (token === "`" && !(inSingle || inDouble))
-                    inQuote = !inQuote;
-
-                const inQuotes = inSingle || inDouble || inQuote;
-                const inBrackets = parenDepth != 0 || squareDepth != 0 || curlyDepth != 0 || angleDepth != 0;
-
-                if (inQuotes) continue;
-                if (token === "'" || token === "\"" || token === "`") continue;
-
-                if (token === "(") parenDepth ++
-                if (token === "[") squareDepth ++
-                if (token === "{") curlyDepth ++
-                if (token === "<") angleDepth ++
-
-                if (token === ")") parenDepth --
-                if (token === "]") squareDepth --
-                if (token === "}") curlyDepth --
-                if (token === ">") angleDepth --
-
-                if (token === "(" && parenDepth == 1 && squareDepth == 0 && curlyDepth == 0 && angleDepth == 0 && i > 0) {
-                    this.key = new Node(tokens.slice(0, i).join(""));
-                    tokenStack = [];
-                }
-                if (token === ")" && parenDepth == 0 && squareDepth == 0 && curlyDepth == 0 && angleDepth == 0) {
-                    this.args = new Node(tokenStack.slice(0, -1).join(""));
-                }
-            }
+            default:
+                throw Error("cannot run node of type '" + this.type + "'");
         }
     }
 }
-
-class Script {
-    constructor(code = "", name = "script") {
-        this.node = new Node(code);
+class List {
+    constructor(code) {
+        this.code = code;
+        this.parse();
     }
-
-    run() {
-
+    parse() {
+        const elements = split(this.code, ",");
+        this.type = "list";
+        this.elements = elements.map(e => new Node(e));
+    }
+    run(scope) {
+        return this.elements.map(e => e.run(scope));
     }
 }
 
-const code = `
-print("hello world!","wow");
-wow();
-`
+class Value {
+    constructor(...params) {
+        this.instance(...params);
+    }
 
-const myScript = new Script(code, "script");
-myScript.run();
-console.log(JSON.stringify(myScript, null, "  "));
+    instance() {
+        this.type = "unknown";
+    }
+
+    stringify() {
+        return `<unknown>`;
+    }
+    execute(args) {
+        return ErrorValue()
+    }
+}
+
+class Null extends Value {
+    instance() {
+        this.type = "null";
+        this.data = "null";
+    }
+
+    stringify() {
+        return `<null>`;
+    }
+}
+class Undefined extends Null {
+    instance() {
+        super.instance();
+        this.data = "undefined";
+    }
+
+    stringify() {
+        return `<null:undefined>`;
+    }
+}
+class ReturnValue extends Value {
+    instance(value) {
+        this.value = value;
+    }
+}
+class ErrorValue extends Value {
+    instance(scope, type, text) {
+        this.type = "error";
+        this.errorType = type;
+        this.text = text;
+    }
+}
+
+class StringValue extends Value {
+    instance(data) {
+        this.type = "str";
+        this.data = data ?? "";
+    }
+}
+
+class Scope {
+    constructor(variables) {
+        variables ??= {};
+        this.layers = [];
+    }
+
+    newLayer(variables) {
+        this.layers.push(new ScopeLayer(variables));
+    }
+    exitLayer() {
+        const layer = this.layers.pop();
+        layer.dissolve();
+        return layer;
+    }
+
+    get(key) {
+        return memory[this.getRef(key)];
+    }
+    getRef(key) {
+        for (let i = 0; i < this.layers.length; i++) {
+            const layer = this.layers[i];
+            const r = layer.getRef(key);
+            if (r)
+                return r;
+        }
+    }
+}
+class ScopeLayer {
+    constructor(variables) {
+        variables ??= {};
+        variables = Object.fromEntries(
+            Object.entries(variables).map(([key, value]) => [key, allocate(value)])
+        );
+        this.variables = variables;
+    }
+
+    dissolve() {
+        const refs = Object.values(this.variables);
+        for (let i = 0; i < refs.length; i++) {
+            deallocate(refs[i]);
+        }
+    }
+
+    get(key) {
+        return memory[this.getRef(key)];
+    }
+    getRef(key) {
+        return this.variables[key];
+    }
+}
+
+class Script extends Value {
+    constructor(data) {
+        super();
+        this.ast = new Node(data["code"] ?? "");
+    }
+
+    run(func) {
+        this.ast.run();
+    }
+}
+
+
+const myScript = new Script({
+    code: `
+        print("sillies");
+        print("wow");
+    `
+});
+myScript.run(); // if u dont give it a function name it just runs root
