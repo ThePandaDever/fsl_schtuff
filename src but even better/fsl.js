@@ -1,7 +1,7 @@
 
 const memory = {};
 
-function split(text, type) {
+function split(text, type, useendbracket) {
     text = text.trim();
     const tokens = [];
     let current = "";
@@ -18,6 +18,11 @@ function split(text, type) {
     const open = brackets[0],
         close = brackets[1];
     const splitChars = (typeof type == "string") ? (type.length === 1 ? type : "") : type;
+
+    const operators = [
+        "+","-","*","/","^","%",
+        "."
+    ]
     
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
@@ -71,6 +76,15 @@ function split(text, type) {
         }
         if (char === close && bracketDepth == 0 && curlyDepth == 0 && squareDepth == 0 && arrowDepth == 0) {
             current += close;
+            tokens.push(current.trim());
+            current = "";
+            continue;
+        }
+
+        if (useendbracket && char === "}" && !operators.includes(text[i + 1])) {
+            current += char;
+            tokens.push(current.trim());
+            current = "";
             continue;
         }
 
@@ -249,17 +263,23 @@ function runOperation(scope, a,b,op) {
 class Node {
     constructor(code) {
         this.code = code.trim();
-        this.parse()
+        this.parse(this.code)
     }
-    parse() {
-        if (has(this.code, ";")) {
-            const elements = split(this.code, ";").filter(e => e !== ";");
+    parse(code) {
+        // segment
+        if (is(code, "curly") && has(code.slice(1,-1), ";")) {
+            this.parse(code.slice(1,-1));
+            return;
+        }
+        if (has(code, ";")) {
+            const elements = split(code, ";", true).filter(e => e !== ";");
             this.type = "segment";
             this.elements = elements.filter(e => e.trim() != "").map(e => new Node(e));
             return;
         }
 
-        const ternaryTokens = split(this.code, ["?",":"]);
+        // ternary
+        const ternaryTokens = split(code, ["?",":"]);
         if (ternaryTokens.filter(t => t === "?").length >= 1 && ternaryTokens.filter(t => t === ":").length >= 1) {
             let depth = 0;
             let start = 0;
@@ -285,7 +305,8 @@ class Node {
             return;
         }
 
-        const operatorTokens = split(this.code, ["+","-","*","/","^","%"]);
+        // operations
+        const operatorTokens = split(code, ["+","-","*","/","^","%"]);
         if (operatorTokens.length > 2) {
             const operations = {
                 "+": "add",
@@ -326,7 +347,8 @@ class Node {
             return;
         }
         
-        const bracketTokens = split(this.code, "bracket");
+        // execution
+        const bracketTokens = split(code, "bracket");
         if (is(bracketTokens[bracketTokens.length - 1],"bracket")) {
             const bracket = bracketTokens.pop();
             this.type = "execution";
@@ -335,25 +357,40 @@ class Node {
             return;
         }
 
-        if (is(this.code,"single-q") || is(this.code,"double-q") || is(this.code,"back-q")) {
+        // functions
+        const functionBracketTokens = split(code, "bracket");
+        const functionSpaceTokens = split(functionBracketTokens[0], " ").filter(t => t !== " ");
+        if (functionSpaceTokens[0] === "fn" && is(functionBracketTokens[1], "bracket")) {
+            const name = functionSpaceTokens[1];
+
+            this.type = "function";
+            this.name = name;
+            this.content = new Node(functionBracketTokens[2] ?? "undefined");
+            this.params = split(functionBracketTokens[1].slice(1,-1),",").filter(e => e !== ",").map(p => Parameter.parse(p));
+            return;
+        }
+
+        // strings
+        if (is(code,"single-q") || is(code,"double-q") || is(code,"back-q")) {
             this.type = "string";
-            this.data = unExcape(this.code.slice(1,-1));
+            this.data = unExcape(code.slice(1,-1));
             return;
         }
-
-        if (isNumeric(this.code)) {
+        // numbers
+        if (isNumeric(code)) {
             this.type = "number";
-            this.data = Number(this.code);
+            this.data = Number(code);
             return;
         }
 
-        if (/^[^'"` -]*[a-zA-Z_1-9][^'"` -]*$/.test(this.code)) {
+        // variable
+        if (/^[A-Za-z0-9_]+$/.test(code)) {
             this.type = "variable";
-            this.key = this.code;
+            this.key = code;
             return;
         }
 
-        throw Error("unexpected tokens: '" + this.code.trim().split("\n").map(l => l.trim()).join("\\n") + "'");
+        throw Error("unexpected tokens: '" + code.trim().split("\n").map(l => l.trim()).join("\\n") + "'");
     }
 
     run(scope) {
@@ -361,14 +398,14 @@ class Node {
         //console.log(this);
         switch (this.type) {
             case "segment": {
+                scope.newLayer();
                 for (let i = 0; i < this.elements.length; i++) {
                     const element = this.elements[i];
-                    scope.newLayer();
                     const out = element.run(scope);
-                    scope.exitLayer();
                     if (out.shouldReturn())
                         return out;
                 }
+                scope.exitLayer();
                 return new Undefined();
             }
             case "execution": {
@@ -406,6 +443,11 @@ class Node {
                 return new StringValue(this.data);
             case "number":
                 return new NumberValue(this.data);
+            case "function":
+                const func = new FunctionValue("def", this.content, this.name, this.params);
+                if (this.name && scope)
+                    scope.assign(this.name, func);
+                return func;
 
             default:
                 throw Error("cannot run node of type '" + this.type + "'");
@@ -432,6 +474,33 @@ class List {
         return out;
     }
 }
+class Parameter {
+    constructor(name, defaultValue, type) {
+        this.name = name;
+        this.defaultValue = defaultValue ?? new Undefined();
+        this.type = type ?? "any";
+    }
+
+    static parse(code) {
+        const assignmentTokens = split(code, "=").filter(t => t !== "=");
+        const spaceTokens = split(assignmentTokens.shift(), " ").filter(t => t !== " ");
+        let defaultValue = null;
+        let type = null;
+        let name = null;
+        if (assignmentTokens.length >= 1)
+            defaultValue = new Node(assignmentTokens.join("="));
+        if (spaceTokens.length == 1)
+            name = spaceTokens[0];
+        else if (spaceTokens.length == 2) {
+            type = spaceTokens[0];
+            name = spaceTokens[1];
+        } else {
+            throw Error("unknown parameter syntax: " + code);
+        }
+
+        return new Parameter(name, defaultValue, type);
+    }
+}
 
 class Value {
     constructor(...params) {
@@ -441,23 +510,14 @@ class Value {
     instance() {
         this.type = "unknown";
     }
-    shouldReturn() {
-        return false;
-    }
+    dissolve(ref) {}
+    shouldReturn() { return false; }
 
-    isNullish() {
-        return this.type != undefined;
-    }
-    isUndefined() {
-        return this instanceof Undefined;
-    }
+    isNullish() { return this.type != undefined; }
+    isUndefined() { return this instanceof Undefined; }
 
-    getType() {
-        return this.type;
-    }
-    isType(type) {
-        return Value.isTypeEqual(this.getType(), type);
-    }
+    getType() { return this.type; }
+    isType(type) { return Value.isTypeEqual(this.getType(), type); }
     static isTypeEqual(typea, typeb) {
         return (typea === "any" || typeb === "any") ? true : typea === typeb;
     }
@@ -467,9 +527,7 @@ class Value {
         if (type === "bool") return new BoolValue(this.boolify());
         return new ErrorReturn(scope, "CannotCast", "cannot cast", this.type, "to", type);
     }
-    boolify() {
-        return true;
-    }
+    boolify() { return true; }
     stringify() {
         return `<${this.type ?? "unknown"}>`;
     }
@@ -544,16 +602,24 @@ class ErrorValue extends Value {
     }
 }
 class FunctionValue extends Value {
-    instance(type, data) {
+    instance(type, data, name, params) {
         this.type = "Func";
         this.funcType = type;
         this.data = data;
+        this.name = name;
+        this.params = params;
     }
 
     execute(scope, args) {
         switch (this.funcType) {
             case "builtin": {
                 return this.data(scope, args) ?? new Undefined();
+            }
+            case "def": {
+                scope.newLayer(Object.fromEntries(args.map((a, i) => [this.params[i].name, a.isNullish() ? (this.params[i] && this.params[i].defaultValue ? this.params[i].defaultValue.run(scope) : new Undefined()) : a])));
+                const out = this.data.run(scope);
+                scope.exitLayer();
+                return out;
             }
             default:
                 return new ErrorReturn(scope, "UnknownFunctionType", "unknown function type", this.funcType);
@@ -610,12 +676,31 @@ class Scope {
         return memory[this.getRef(key)];
     }
     getRef(key) {
-        for (let i = 0; i < this.layers.length; i++) {
-            const layer = this.layers[i];
+        this.layers.reverse();
+        const layers = this.layers;
+        this.layers.reverse();
+        for (let i = 0; i < layers.length; i++) {
+            const layer = layers[i];
             const r = layer.getRef(key);
             if (r)
                 return r;
         }
+    }
+    assign(key, value) {
+        const ref = this.getRef(key);
+        if (ref) {
+            memory[ref].dissolve();
+            memory[ref] = value;
+        } else {
+            const newRef = allocate(value);
+            this.assignRef(key, newRef);
+            return newRef;
+        }
+        return ref;
+    }
+    assignRef(key, ref) {
+        const top = this.layers[this.layers.length - 1];
+        top.variables[key] = ref;
     }
 }
 class ScopeLayer {
@@ -660,11 +745,12 @@ class Script extends Value {
 const globalScope = {
     print: new FunctionValue("builtin",function(scope, args) {
         console.log(...args.map(a => a.stringify()));
-    }),
+    },"print"),
     test: new FunctionValue("builtin",function(scope, args) {
         return new StringValue("hi");
-    }),
+    },"test"),
 
+    // constants
     true: new BoolValue(true),
     false: new BoolValue(false),
     null: new Null(),
@@ -673,10 +759,14 @@ const globalScope = {
 
 const myScript = new Script({
     code: `
-        print(true ? false ? "wow" : "yes" : "crazy", null, undefined);
+        fn silly(str hi, crazy wow = "hi") {
+            print(hi, wow);
+        }
+
+        silly("hi");
     `
 });
-console.log(JSON.stringify(myScript.ast));
+//console.log(JSON.stringify(myScript.ast, null, "  "));
 const out = myScript.run(); // if u dont give it a function name it just runs root
 if (!out.isUndefined())
     console.log(out);

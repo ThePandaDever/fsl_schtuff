@@ -207,7 +207,7 @@ const local_system = {
 }
 
 let code = `
-while (while(true) {return 1})
+print(fn(){})
 `;
 
 let astSegmentIds = [];
