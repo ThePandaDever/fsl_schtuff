@@ -81,7 +81,7 @@ function split(text, type, useendbracket) {
             continue;
         }
 
-        if (useendbracket && char === "}" && !operators.includes(text[i + 1])) {
+        if (useendbracket && char === "}" && !operators.includes(text[i + 1]) && bracketDepth == 0 && curlyDepth == 0 && squareDepth == 0 && arrowDepth == 0) {
             current += char;
             tokens.push(current.trim());
             current = "";
@@ -267,7 +267,7 @@ class Node {
     }
     parse(code) {
         // segment
-        if (is(code, "curly") && has(code.slice(1,-1), ";")) {
+        if (is(code, "curly") && !(has(code.slice(1,-1), ",") || has(code.slice(1,-1), ":"))) {
             this.parse(code.slice(1,-1));
             return;
         }
@@ -346,6 +346,19 @@ class Node {
             this.a = new Node(tokens2.join(""));
             return;
         }
+
+        // functions (no {})
+        const functionBracketTokens = split(code, "bracket");
+        const functionSpaceTokens = split(functionBracketTokens[0], " ").filter(t => t !== " ");
+        if (functionSpaceTokens[0] === "fn" && is(functionBracketTokens[1], "bracket") && !is(functionBracketTokens[2], "curly")) {
+            const name = functionSpaceTokens[1];
+            
+            this.type = "function";
+            this.name = name;
+            this.content = new Node(functionBracketTokens.slice(2).join("") ?? "undefined");
+            this.params = split(functionBracketTokens[1].slice(1,-1),",").filter(e => e !== ",").map(p => Parameter.parse(p));
+            return;
+        }
         
         // execution
         const bracketTokens = split(code, "bracket");
@@ -357,15 +370,13 @@ class Node {
             return;
         }
 
-        // functions
-        const functionBracketTokens = split(code, "bracket");
-        const functionSpaceTokens = split(functionBracketTokens[0], " ").filter(t => t !== " ");
+        // functions ({})
         if (functionSpaceTokens[0] === "fn" && is(functionBracketTokens[1], "bracket")) {
             const name = functionSpaceTokens[1];
-
+            
             this.type = "function";
             this.name = name;
-            this.content = new Node(functionBracketTokens[2] ?? "undefined");
+            this.content = new Node(functionBracketTokens.slice(2).join("") ?? "undefined");
             this.params = split(functionBracketTokens[1].slice(1,-1),",").filter(e => e !== ",").map(p => Parameter.parse(p));
             return;
         }
@@ -513,7 +524,7 @@ class Value {
     dissolve(ref) {}
     shouldReturn() { return false; }
 
-    isNullish() { return this.type != undefined; }
+    isNullish() { return this.type == "null"; }
     isUndefined() { return this instanceof Undefined; }
 
     getType() { return this.type; }
@@ -528,9 +539,7 @@ class Value {
         return new ErrorReturn(scope, "CannotCast", "cannot cast", this.type, "to", type);
     }
     boolify() { return true; }
-    stringify() {
-        return `<${this.type ?? "unknown"}>`;
-    }
+    stringify(objectFormat) { return `<${this.type ?? "unknown"}>`; }
     execute(scope, args) {
         return new ErrorReturn(scope, "CannotExecute", "cannot execute of type",this.type);
     }
@@ -549,9 +558,7 @@ class Null extends Value {
     boolify() {
         return false;
     }
-    stringify() {
-        return `<null>`;
-    }
+    stringify() { return `<null>`; }
 }
 class Undefined extends Null {
     instance() {
@@ -559,9 +566,7 @@ class Undefined extends Null {
         this.data = "undefined";
     }
 
-    stringify() {
-        return `<null:undefined>`;
-    }
+    stringify() { return `<null:undefined>`; }
 }
 class ReturnValue extends Value {
     instance(value) {
@@ -598,6 +603,7 @@ class ErrorValue extends Value {
             "CannotCast",
             "UnknownFunctionType",
             "UnknownOperation",
+            "TypeMismatchError"
         ]
     }
 }
@@ -616,15 +622,32 @@ class FunctionValue extends Value {
                 return this.data(scope, args) ?? new Undefined();
             }
             case "def": {
-                scope.newLayer(Object.fromEntries(args.map((a, i) => [this.params[i].name, a.isNullish() ? (this.params[i] && this.params[i].defaultValue ? this.params[i].defaultValue.run(scope) : new Undefined()) : a])));
-                const out = this.data.run(scope);
+                let err = null;
+                scope.newLayer(Object.fromEntries(this.params.map((param, i) => {
+                    let a = args[i];
+                    let defaultVal = param.defaultValue;
+                    if (defaultVal instanceof Node)
+                        defaultVal = defaultVal.run(scope);
+                    a = a && !a.isNullish() ? a : defaultVal
+                    if (!err)
+                        if (!a.isType(param.type))
+                            err = new ErrorReturn(scope, "TypeMismatchError", "wanted",param.type,"got",a.type);
+                    return [param.name, a];
+                })));
+                if (err)
+                    return err;
+                let out = this.data.run(scope);
                 scope.exitLayer();
+                if (out.shouldReturn())
+                    out = out.getReturnValue();
                 return out;
             }
             default:
                 return new ErrorReturn(scope, "UnknownFunctionType", "unknown function type", this.funcType);
         }
     }
+
+    stringify() { return `<Func:${this.name}:${this.funcType}>`; }
 }
 class StringValue extends Value {
     instance(data) {
@@ -632,9 +655,7 @@ class StringValue extends Value {
         this.data = data ?? "";
     }
 
-    stringify() {
-        return this.data;
-    }
+    stringify(objectFormat) { return objectFormat ? JSON.stringify(this.data) : this.data; }
 }
 class NumberValue extends Value {
     instance(data) {
@@ -642,9 +663,7 @@ class NumberValue extends Value {
         this.data = data ?? 0;
     }
 
-    stringify() {
-        return this.data.toString();
-    }
+    stringify() { return this.data.toString(); }
 }
 class BoolValue extends Value {
     instance(data) {
@@ -652,8 +671,16 @@ class BoolValue extends Value {
         this.data = !!data;
     }
 
+    stringify() { return this.data.toString(); }
+}
+class TupleValue extends Value {
+    instance(elements) {
+        this.type = "Tuple";
+        this.elements = (elements ?? []).map(e => allocate(e));
+    }
+
     stringify() {
-        return this.data.toString();
+        return `<Tuple:[${this.elements.map(e => memory[e].stringify(true)).join(", ")}]>`;
     }
 }
 
@@ -727,7 +754,7 @@ class ScopeLayer {
     }
 }
 
-class Script extends Value {
+export class Script extends Value {
     constructor(data) {
         super();
         this.ast = new Node(data["code"] ?? "");
@@ -745,10 +772,18 @@ class Script extends Value {
 const globalScope = {
     print: new FunctionValue("builtin",function(scope, args) {
         console.log(...args.map(a => a.stringify()));
+        return new TupleValue(args);
+    },"print"),
+    log: new FunctionValue("builtin",function(scope, args) {
+        console.log(...args);
     },"print"),
     test: new FunctionValue("builtin",function(scope, args) {
         return new StringValue("hi");
     },"test"),
+
+    return: new FunctionValue("builtin",function(scope, args) {
+        return new ReturnValue(args.length > 0 ? args.length > 1 ? new TupleValue(args) : args[0] : new Undefined());
+    }),
 
     // constants
     true: new BoolValue(true),
@@ -757,16 +792,18 @@ const globalScope = {
     undefined: new Undefined(),
 };
 
-const myScript = new Script({
-    code: `
-        fn silly(str hi, crazy wow = "hi") {
-            print(hi, wow);
-        }
+if (import.meta.url === `file:///d:/fsl_schtuff/src%20but%20even%20better/fsl.js`) {
+    const myScript = new Script({
+        code: `
+            fn crazy(c) return("hi","wow","crazy",c);
+            
+            print(crazy(crazy));
+        `
+    });
 
-        silly("hi");
-    `
-});
-//console.log(JSON.stringify(myScript.ast, null, "  "));
-const out = myScript.run(); // if u dont give it a function name it just runs root
-if (!out.isUndefined())
-    console.log(out);
+    //console.log(JSON.stringify(myScript.ast, null, "  "));
+
+    const out = myScript.run(); // if u dont give it a function name it just runs root
+    if (!out.isUndefined())
+        console.log(out.stringify());
+}
