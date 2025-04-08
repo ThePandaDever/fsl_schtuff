@@ -236,16 +236,19 @@ function runOperation(scope, a,b,op) {
             return new StringValue(a.stringify() + " " + b.stringify());
         case "join":
             return new StringValue(a.stringify() + b.stringify());
-        case "sub": case "mul": case "div": case "pow": case "mod":
+        case "mul":
+            if (a.isType("num") && b.isType("num"))
+                return new NumberValue(a.data.repeat(Math.max(b.data,0)));
+            a = a.cast(scope, "num"); if (a.shouldReturn()) return a;
+            b = b.cast(scope, "num"); if (b.shouldReturn()) return b;
+            return new StringValue(a.stringify() + " " + b.stringify());
+        case "sub": case "div": case "pow": case "mod":
             a = a.cast(scope, "num"); if (a.shouldReturn()) return a;
             b = b.cast(scope, "num"); if (b.shouldReturn()) return b;
             switch (op) {
                 case "sub":
                     if (a.isType("num") && b.isType("num"))
                         return new NumberValue(a.data - b.data);
-                case "mul":
-                    if (a.isType("num") && b.isType("num"))
-                        return new NumberValue(a.data * b.data);
                 case "div":
                     if (a.isType("num") && b.isType("num"))
                         return new NumberValue(a.data / b.data);
@@ -257,6 +260,28 @@ function runOperation(scope, a,b,op) {
                         return new NumberValue(a.data % b.data);
             }
             break;
+        
+        case "or": {
+            const bool_a = a.cast(scope, "bool"); if (bool_a.shouldReturn()) return bool_a;
+            const bool_b = b.cast(scope, "bool"); if (bool_b.shouldReturn()) return bool_b;
+            return bool_a.data ? a : b;
+        }
+        case "and": {
+            const bool_a = a.cast(scope, "bool"); if (bool_a.shouldReturn()) return bool_a;
+            const bool_b = b.cast(scope, "bool"); if (bool_b.shouldReturn()) return bool_b;
+            return bool_a.data ? b : a;
+        }
+        case "or_bool": {
+            const bool_a = a.cast(scope, "bool"); if (bool_a.shouldReturn()) return bool_a;
+            const bool_b = b.cast(scope, "bool"); if (bool_b.shouldReturn()) return bool_b;
+            return new BoolValue(bool_a.data || bool_b.data);
+        }
+        case "and_bool": {
+            const bool_a = a.cast(scope, "bool"); if (bool_a.shouldReturn()) return bool_a;
+            const bool_b = b.cast(scope, "bool"); if (bool_b.shouldReturn()) return bool_b;
+            return new BoolValue(bool_a.data && bool_b.data);
+        }
+
         default:
             return new ErrorReturn(scope, "UnknownOperation", "unknown operation", op);
     }
@@ -269,9 +294,92 @@ class Node {
     }
     parse(code) {
         if (!code) { this.kind = "empty"; return };
+        //console.log(code.split("\n").map(l => l.trim()).join("\\n"));
 
+        // segment (statement; statement)
+        if (has(code, ";")) {
+            const elements = split(code, ";", true).filter(e => e !== ";");
+            this.kind = "segment";
+            this.elements = elements.filter(e => e.trim() != "").map(e => new Node(e));
+            return;
+        }
+
+        const assignmentTokens = split(code, ["=",">","<","!","~","?","+","-","*","/","^","%","|","&"]);
+        if (assignmentTokens.length > 2) {
+            const key = assignmentTokens.shift();
+            let assignment = "";
+            let token = assignmentTokens.shift();
+            while (["=",">","<","!","~","?","+","-","*","/","^","%"].includes(token)) {
+                assignment = assignment + token;
+                token = assignmentTokens.shift();
+            }
+            assignmentTokens.reverse();
+            assignmentTokens.push(token);
+            assignmentTokens.reverse();
+            const value = assignmentTokens.join("");
+            
+            switch (assignment) {
+                case "=":
+                    this.kind = "assignment";
+                    this.type = "assign";
+                    this.key = new Node(key);
+                    this.value = new Node(value);
+                    return;
+            }
+            const operator_assignments = {
+                "+": "add",
+                "++": "join",
+                "-": "sub",
+                "*": "mul",
+                "/": "div",
+                "^": "pow",
+                "%": "mod",
+                "||": "or",
+                "&&": "and"
+            }
+        }
+
+        // functions (no {})
+        const functionBracketTokens = split(code, "bracket");
+        const functionSpaceTokens = split(functionBracketTokens[0], " ").filter(t => t !== " ");
+        if (functionSpaceTokens[0] === "fn" && is(functionBracketTokens[1], "bracket") && !is(functionBracketTokens[2], "curly")) {
+            const name = functionSpaceTokens[1];
+            
+            this.kind = "function";
+            this.name = name;
+            this.content = new Node(functionBracketTokens.slice(2).join("") ?? "undefined");
+            this.params = split(functionBracketTokens[1].slice(1,-1),",").filter(e => e !== ",").map(p => Parameter.parse(p));
+            return;
+        }
+
+        // logic
+        const logicTokens = split(code, ["|","&"]);
+        if (logicTokens.length >= 3) {
+            const b = logicTokens.pop();
+            let logic = "";
+            let token = logicTokens.pop();
+            while (["|","&"].includes(token)) {
+                logic = token + logic;
+                token = logicTokens.pop();
+            }
+            logicTokens.push(token);
+            const logicOperators = {
+                "||": "or",
+                "&&": "and",
+                "|||": "or_bool",
+                "&&&": "and_bool"
+            }
+            if (logicOperators[logic]) {
+                this.kind = "operation";
+                this.type = logicOperators[logic] ?? logic;
+                this.a = new Node(logicTokens.join(""));
+                this.b = new Node(b);
+                return
+            }
+        }
+
+        // comparisons
         const comparisonTokens = split(code, ["=",">","<","!","~","?"]);
-        console.log(code,comparisonTokens);
         if (comparisonTokens.length >= 3) {
             const b = comparisonTokens.pop();
             let comparison = "";
@@ -280,6 +388,7 @@ class Node {
                 comparison = token + comparison;
                 token = comparisonTokens.pop();
             }
+            comparisonTokens.push(token);
             const comparisons = {
                 "==": "equal",
                 "!=": "not_equal",
@@ -335,19 +444,6 @@ class Node {
             return;
         }
 
-        // functions (no {})
-        const functionBracketTokens = split(code, "bracket");
-        const functionSpaceTokens = split(functionBracketTokens[0], " ").filter(t => t !== " ");
-        if (functionSpaceTokens[0] === "fn" && is(functionBracketTokens[1], "bracket") && !is(functionBracketTokens[2], "curly")) {
-            const name = functionSpaceTokens[1];
-            
-            this.kind = "function";
-            this.name = name;
-            this.content = new Node(functionBracketTokens.slice(2).join("") ?? "undefined");
-            this.params = split(functionBracketTokens[1].slice(1,-1),",").filter(e => e !== ",").map(p => Parameter.parse(p));
-            return;
-        }
-
         // operations
         const operatorTokens = split(code, ["+","-","*","/","^","%"]);
         if (operatorTokens.length > 2) {
@@ -382,10 +478,10 @@ class Node {
                 tokens2.push(token);
             }
 
-            this.kind = "operator";
+            this.kind = "operation";
             this.b = new Node(tokens2.pop());
-            this.op = tokens2.pop();
-            this.op = operations[this.op] ?? this.op
+            this.type = tokens2.pop();
+            this.type = operations[this.type] ?? this.type
             this.a = new Node(tokens2.join(""));
             return;
         }
@@ -405,23 +501,6 @@ class Node {
             this.parse(code.slice(1,-1));
             return;
         }
-        // segment (statement; statement)
-        if (has(code, ";")) {
-            const elements = split(code, ";", true).filter(e => e !== ";");
-            this.kind = "segment";
-            this.elements = elements.filter(e => e.trim() != "").map(e => new Node(e));
-            return;
-        }
-
-        // property (value.key)
-        const propertyTokens = split(code, ".").filter(e => e !== ".");
-        if (propertyTokens.length > 1) {
-            const property = propertyTokens.pop();
-            this.kind = "property";
-            this.key = property;
-            this.value = new Node(propertyTokens.join("."));
-            return;
-        }
         
         // keys (value["key"])
         const keyTokens = split(code, "square");
@@ -433,6 +512,16 @@ class Node {
                 this.value = new Node(keyTokens.join(""));
                 return;
             }
+        }
+
+        // property (value.key)
+        const propertyTokens = split(code, ".").filter(e => e !== ".");
+        if (propertyTokens.length > 1) {
+            const property = propertyTokens.pop();
+            this.kind = "property";
+            this.key = property;
+            this.value = new Node(propertyTokens.join("."));
+            return;
         }
 
         // tuples / brackets
@@ -457,6 +546,7 @@ class Node {
             return;
         }
 
+        // objects
         if (is(code, "curly")) {
             code = code.slice(1, -1);
             const elements = split(code, ",").filter(t => t !== ",");
@@ -529,13 +619,13 @@ class Node {
                     return out;
                 return out;
             }
-            case "operator":
+            case "operation": {
                 const a = this.a.run(scope);
                 const b = this.b.run(scope);
                 if (a.shouldReturn()) return a;
                 if (b.shouldReturn()) return b;
-
-                return runOperation(scope, a, b, this.op);
+                return runOperation(scope, a, b, this.type);
+            }
             case "ternary":
                 const trueVal = this.trueVal.run(scope);
                 const falseVal = this.falseVal.run(scope);
@@ -546,6 +636,58 @@ class Node {
                 cond = cond.cast(scope, "bool");
                 if (cond.shouldReturn()) return cond;
                 return cond.data ? trueVal : falseVal;
+            case "comparison": {
+                let a = this.a.run(scope);
+                let b = this.b.run(scope);
+                if (a.shouldReturn()) return a;
+                if (b.shouldReturn()) return b;
+                if (["greater","smaller","greater_equal","smaller_equal"].includes(this.type)) {
+                    a = a.cast(scope, "num");
+                    b = b.cast(scope, "num");
+                }
+                if (a.shouldReturn()) return a;
+                if (b.shouldReturn()) return b;
+                switch (this.type) {
+                    case "equal":
+                        return new BoolValue(a.equal(b));
+                    case "not_equal":
+                        return new BoolValue(!a.equal(b));
+                    case "greater":
+                        return new BoolValue(a.value > b.value);
+                    case "smaller":
+                        return new BoolValue(a.value < b.value);
+                    case "greater_equal":
+                        return new BoolValue(a.value >= b.value);
+                    case "smaller_equal":
+                        return new BoolValue(a.value <= b.value);
+                    case "string_equal":
+                        a = a.cast(scope, "str");
+                        b = b.cast(scope, "str");
+                        if (a.shouldReturn()) return a;
+                        if (b.shouldReturn()) return b;
+                        return new BoolValue(a.data === b.data);
+                    case "type_equal":
+                        return new BoolValue(a.isType(b.getType()));
+                    default:
+                        return new ErrorReturn(scope, "UnknownComparison", "unknown comparison " + this.type)
+                }
+                break;
+            }
+            case "assignment": {
+                let value = this.value.run(scope);
+                if (value.shouldReturn()) return value;
+
+                switch (this.type) {
+                    case "assign":
+                        const out = this.key.assign(scope, value);
+                        if (out)
+                            return out;
+                        break;
+                    default:
+                        return new ErrorReturn(scope, "UnknownAssignment", "unknown assignment " + this.type)
+                }
+                return value;
+            }
 
             case "variable":
                 return scope.get(this.key) ?? new Undefined();
@@ -606,7 +748,23 @@ class Node {
             }
 
             default:
-                throw Error("cannot run node of kind '" + this.kind + "'");
+                return new ErrorReturn(scope, "CannotRunNode", "cannot run node of kind " + this.kind);
+        }
+    }
+
+    assign(scope, value) {
+        switch (this.kind) {
+            case "variable":
+                scope.assign(this.key, value);
+                return value;
+            case "key": {
+                const key = this.run(scope);
+                if (key.shouldReturn()) return key;
+                console.log(key,value);
+                break;
+            }
+            default:
+                return new ErrorReturn(scope, "CannotAssign", "cannot assign to node of type " + this.kind);
         }
     }
 }
@@ -617,7 +775,6 @@ class List {
     }
     parse() {
         const elements = split(this.code, ",").filter(t => t !== ",");
-        console.log(elements);
         this.kind = "list";
         this.elements = elements.map(e => new Node(e));
     }
@@ -689,7 +846,9 @@ class Value {
         const ref = this.getKeyRef(scope, key);
         if (ref instanceof Value && ref.shouldReturn())
             return ref;
-        return ref ? memory[ref] : new Undefined();
+        const value = ref ? memory[ref] : new Undefined();
+        value.parent = this;
+        return value;
     }
     getKeyRef(scope, key) {
         return new ErrorReturn(scope, "CannotGetKey", "cannot get key of type", key.getType(), "from type", this.getType());
@@ -720,6 +879,7 @@ class Value {
     cast(scope, type) {
         if (this.isType(type)) return this;
         if (type === "bool") return new BoolValue(this.boolify());
+        if (type === "str") return new StringValue(this.stringify());
         return new ErrorReturn(scope, "CannotCast", "cannot cast", this.type, "to", type);
     }
     boolify() { return true; }
@@ -794,8 +954,12 @@ class ErrorValue extends Value {
             "CannotCast",
             "CannotGetKey",
             "CannotGetProperty",
+            "CannotRunNode",
+            "CannotAssign",
             "UnknownFunctionType",
             "UnknownOperation",
+            "UnknownComparison",
+            "UnknownAssignment",
             "TypeMismatchError",
             "UnexpectedDecimal",
             "UnexpectedNonKeyPair"
@@ -810,22 +974,30 @@ class ErrorValue extends Value {
     }
 }
 class FunctionValue extends Value {
-    instance(type, data, name, params) {
+    instance(type, data, name, extra) {
         this.type = "Func";
         this.funcType = type;
         this.data = data;
         this.name = name;
-        this.params = params;
+        this.extra = extra;
     }
 
     execute(scope, args, self) {
+        if (this.funcType === "builtin" && this.typeParent) {
+            let methodType = this.typeParent;
+            if (!self.isType(methodType) && args.length >= 1)
+                self = args.shift();
+            else if (!self.isType(methodType))
+                return new ErrorReturn(scope, "TypeMismatchError", `${methodType} method ran on non ${methodType} (${self.getType()})`);
+        }
+        self ??= new Undefined();
         switch (this.funcType) {
-            case "builtin": {
+            case "builtin": case "builtin_self": {
                 return this.data(scope, args, self) ?? new Undefined();
             }
             case "def": {
                 const vars = {};
-                const params = [...this.params];
+                const params = [...this.extra];
                 let i = 0;
                 while (params.length > 0) {
                     const param = params.shift();
@@ -861,7 +1033,7 @@ class FunctionValue extends Value {
     }
 
     equalData(other) {
-        return other.funcType === other.funcType && other.funcType === this.name
+        return other.funcType === other.funcType && other.name === this.name
     }
     stringify() { return `<Func:${this.name ?? "anon"}:${this.funcType}>`; }
 }
@@ -871,8 +1043,16 @@ class StringValue extends Value {
         this.data = data ?? "";
     }
 
+    cast(scope, type) {
+        if (type == "str" && isNumeric(this.data))
+            return new NumberValue(Number(type));
+        return super.cast(scope, type);
+    }
     equalData(other) {
         return other.data === this.data;
+    }
+    boolify() {
+        return this.data.length > 0;
     }
     stringify(objectFormat) { return objectFormat ? JSON.stringify(this.data) : this.data; }
 }
@@ -926,7 +1106,7 @@ class TupleValue extends Value {
 class ArrayValue extends TupleValue {
     instance(elements) {
         super.instance(elements);
-        this.type = "Array";
+        this.type = "Arr";
     }
 
     stringify() {
@@ -935,14 +1115,14 @@ class ArrayValue extends TupleValue {
 }
 class ObjectValue extends Value {
     instance(scope, pairs) {
-        this.type = "Object";
+        this.type = "Obj";
         this.keys = [];
         this.values = [];
         for (let i = 0; i < pairs.length; i++) {
             const pair = pairs[i];
             if (pair instanceof KeyPair) {
                 this.keys.push(allocate(pair.key));
-                this.values.push(allocate(pair.value));
+                this.values.push(pair.valueRef ?? allocate(pair.value));
             } else {
                 return new ErrorReturn(scope, "UnexpectedNonKeyPair", "unexpected non key pair in object");
             }
@@ -967,24 +1147,40 @@ class ObjectValue extends Value {
 }
 class TypeValue extends Value {
     instance(name, properties) {
-        this.type = "type";
+        this.type = "Type";
         this.name = name;
         this.properties = properties ?? {};
         
         this.properties = Object.fromEntries(
-            Object.entries(this.properties).map(([key, value]) => [key, allocate(value)])
+            Object.entries(this.properties).map(([key, value]) => {
+                value.typeParent = this.name;
+                return [key, allocate(value)];
+            })
         );
+    }
+
+    getPropertyRef(scope, key) {
+        switch (key) {
+            case "properties":
+                return allocate(new ObjectValue(scope, Object.entries(this.properties).map(([key, value]) => new KeyPair(new StringValue(key), null, value))));
+        }
+        super.getPropertyRef(scope, key);
     }
 
     equalData(other) {
         return this.name === other.name;
     }
+    stringify() {
+        return `<Type:${this.name}>`;
+    }
 }
 class KeyPair extends Value {
-    instance(key, value) {
+    instance(key, value, valueRef) {
         this.type = "KeyPair";
         this.key = key;
         this.value = value;
+        if (valueRef)
+            this.valueRef = valueRef;
     }
 
     equalData(other) {
@@ -1087,14 +1283,11 @@ export class Script extends Value {
 const globalScope = {
     print: new FunctionValue("builtin",function(scope, args) {
         console.log(...args.map(a => a.stringify()));
-        return new TupleValue(args);
+        return args.length == 1 ? args[0] : new TupleValue(args);
     },"print"),
     log: new FunctionValue("builtin",function(scope, args) {
         console.log(...args);
     },"print"),
-    test: new FunctionValue("builtin",function(scope, args) {
-        return new StringValue("hi");
-    },"test"),
 
     return: new FunctionValue("builtin",function(scope, args) {
         return new ReturnValue(args.length > 0 ? args.length > 1 ? new TupleValue(args) : args[0] : new Undefined());
@@ -1104,13 +1297,13 @@ const globalScope = {
     str: new TypeValue("str", {
         upper: new FunctionValue("builtin",function(scope, args, self) {
             return new StringValue(self.data.toUpperCase());
-        }),
+        }, "upper"),
         lower: new FunctionValue("builtin",function(scope, args, self) {
-            return new StringValue(self.data.toUpperCase());
-        }),
+            return new StringValue(self.data.toLowerCase());
+        }, "lower"),
         trim: new FunctionValue("builtin",function(scope, args, self) {
             return new StringValue(self.data.trim());
-        }),
+        }, "trim"),
     }),
     num: new TypeValue("num"),
     bool: new TypeValue("bool"),
@@ -1118,7 +1311,7 @@ const globalScope = {
     Error: new TypeValue("Error"),
     Func: new TypeValue("Func"),
     Tuple: new TypeValue("Tuple"),
-    Array: new TypeValue("Array", {
+    Arr: new TypeValue("Arr", {
         map: new FunctionValue("builtin",function(scope, args, self) {
             let newElems = [];
             for (let i = 0; i < self.elements.length; i++) {
@@ -1131,8 +1324,70 @@ const globalScope = {
                 newElems.push(v);
             }
             return new ArrayValue(newElems);
-        })
+        }, "map"),
+        filter: new FunctionValue("builtin",function(scope, args, self) {
+            let newElems = [];
+            for (let i = 0; i < self.elements.length; i++) {
+                const e = self.elements[i];
+                scope.newLayer();
+                let keep = (args[0] ?? new Undefined()).execute(scope, [memory[e], new NumberValue(i)]);
+                if (keep.shouldReturn())
+                    return keep;
+                scope.exitLayer();
+                keep = keep.cast(scope, "bool");
+                if (keep.shouldReturn())
+                    return keep;
+                if (keep.data)
+                    newElems.push(memory[e]);
+            }
+            return new ArrayValue(newElems);
+        }, "filter"),
+        some: new FunctionValue("builtin",function(scope, args, self) {
+            for (let i = 0; i < self.elements.length; i++) {
+                const e = self.elements[i];
+                scope.newLayer();
+                let cond = (args[0] ?? new Undefined()).execute(scope, [memory[e], new NumberValue(i)]);
+                if (cond.shouldReturn())
+                    return cond;
+                scope.exitLayer();
+                cond = cond.cast(scope, "bool");
+                if (cond.shouldReturn())
+                    return cond;
+                if (cond.data)
+                    return new BoolValue(true);
+            }
+            return new BoolValue(false);
+        }, "some"),
+        every: new FunctionValue("builtin",function(scope, args, self) {
+            for (let i = 0; i < self.elements.length; i++) {
+                const e = self.elements[i];
+                scope.newLayer();
+                let cond = (args[0] ?? new Undefined()).execute(scope, [memory[e], new NumberValue(i)]);
+                if (cond.shouldReturn())
+                    return cond;
+                scope.exitLayer();
+                cond = cond.cast(scope, "bool");
+                if (cond.shouldReturn())
+                    return cond;
+                if (!cond.data)
+                    return new BoolValue(false);
+            }
+            return new BoolValue(true);
+        }, "every"),
+        reduce: new FunctionValue("builtin",function(scope, args, self) {
+            let val = args[1];
+            for (let i = 0; i < self.elements.length; i++) {
+                const e = self.elements[i];
+                scope.newLayer();
+                val = (args[0] ?? new Undefined()).execute(scope, [val, memory[e], new NumberValue(i)]);
+                if (val.shouldReturn())
+                    return val;
+                scope.exitLayer();
+            }
+            return val;
+        }, "reduce"),
     }),
+    Obj: new TypeValue("Obj"),
     Type: new TypeValue("Type"),
 
     // constants
@@ -1145,13 +1400,26 @@ const globalScope = {
 if (import.meta.url === `file:///d:/fsl_schtuff/src%20but%20even%20better/fsl.js`) {
     const myScript = new Script({
         code: `
-            print(5 == 3, 5 != 3, 5 > 3, 5 < 3, 5 >= 3, 5 <= 3, 5 ~= 3, 5 ?= 3);
+            Arr.funny = fn() print("hi");
+            print(["hi"].funny);
+        `,
+        code: `
+            obj = {"hi":"wow"};
+            obj["crazy"] = "wow";
+            print(obj);
+        `,
+        code: `
+            return("mist" + "is" + "not" + "sigma")
         `
     });
 
     //console.log(JSON.stringify(myScript.ast, null, "  "));
     
-    const out = myScript.run(); // if u dont give it a function name it just runs root
+    console.time();
+    let out = myScript.run(); // if u dont give it a function name it just runs root
+    console.timeEnd();
+    if (out.shouldReturn())
+        out = out.getReturnValue();
     if (!out.isUndefined())
         console.log(out.stringify());
 }

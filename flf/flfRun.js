@@ -6,15 +6,23 @@ if (out)
     console.log("output:",out);
 */
 
+
 import { Script } from "../src but even better/fsl.js";
 
-const myScript = new Script({
-    code: process.argv[2]
-});
+try {
+    const myScript = new Script({
+        code: process.argv[2]
+    });
 
-const out = myScript.run();
-if (!out.isUndefined())
-    console.log(out);
+    let out = myScript.run();
+    if (out.shouldReturn())
+        out = out.getReturnValue();
+    if (!out.isUndefined())
+        console.log(out.stringify());
+} catch (e) {
+    console.log(e.toString());
+}
+
 
 /*
 import { generateAst } from "../old/oldish/src/astGen.js";
