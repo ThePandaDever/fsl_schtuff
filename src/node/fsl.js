@@ -339,6 +339,7 @@ class Node {
     parse(code) {
         if (!code.trim()) { this.kind = "empty"; return };
         //console.log(code.split("\n").map(l => l.trim()).join("\\n"));
+        //console.log("node:", code.replace("\n","\\n"));
 
         // segment (statement; statement)
         const segmentTokens = split(code, ";", true);
@@ -1593,7 +1594,6 @@ class Scope {
     }
     assign(key, value) {
         const ref = this.getRef(key);
-        console.log(key);
         if (ref) {
             memory[ref].dissolve();
             memory[ref] = value;
@@ -1927,13 +1927,8 @@ if (process.argv[1] === `d:\\fsl_schtuff\\src\\node\\fsl.js`) {
             }
         `,
         code: `
-            try {
-                print(5 - 5);
-            } catch (e) {
-                print(e);
-            } then {
-                print(":D");
-            }
+            if (true)
+                print("hi");
         `
     });
     console.timeEnd("ast");
